@@ -17,8 +17,9 @@
 package ly.stealth.mesos.kafka.cli
 
 import java.io.File
+
 import ly.stealth.mesos.kafka.cli.Cli.Error
-import ly.stealth.mesos.kafka.Config
+import ly.stealth.mesos.kafka.{Config, readJson}
 import ly.stealth.mesos.kafka.Util.BindAddress
 import ly.stealth.mesos.kafka.scheduler.ProductionRegistry
 import ly.stealth.mesos.kafka.scheduler.mesos.KafkaMesosScheduler
@@ -181,6 +182,7 @@ trait SchedulerCli {
       if (Config.log != null) printLine(s"Logging to ${Config.log}")
 
       val registry = new ProductionRegistry()
+      readJson.loadExecutors(Config.executorsConfig)
       KafkaMesosScheduler.start(registry)
     }
   }

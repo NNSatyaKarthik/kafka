@@ -157,7 +157,18 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         .build()
     }
 
+
     def newTask(broker: Broker, offer: Offer, reservation: Broker.Reservation): TaskInfo = {
+      def populate(taskBuilder: TaskInfo.Builder, reservation: Broker.Reservation, broker: Broker): TaskInfo.Builder = {
+        if (!(broker.executor == null || broker.executor == "default")) {
+          //        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
+          taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue("docker-compose.yml")))
+        }
+        //    taskBuilder.addAllResources(reservation.toResources)
+        taskBuilder.setExecutor(newExecutor(broker))
+        //    Resource.newBuilder()
+        taskBuilder
+      }
       val taskData = {
         var defaults: Map[String, String] = Map(
           "broker.id" -> broker.id.toString,
@@ -198,15 +209,5 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
       taskBuilder.build
     }
 
-    def populate(taskBuilder: TaskInfo.Builder, reservation: Broker.Reservation, broker: Broker): TaskInfo.Builder = {
-      if (!(broker.executor == null || broker.executor == "default")) {
-        //        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
-        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue("docker-compose.yml")))
-      }
-      //    taskBuilder.addAllResources(reservation.toResources)
-      taskBuilder.setExecutor(newExecutor(broker))
-      //    Resource.newBuilder()
-      taskBuilder
-    }
   }
 }

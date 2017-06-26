@@ -29,7 +29,7 @@ object SchedulerVersion {
 
 object Config {
   val DEFAULT_FILE = new File("kafka-mesos.properties")
-
+  var executorsConfig = "config.json"
   var debug: Boolean = false
   var storage: String = "file:kafka-mesos.json"
 
@@ -94,6 +94,7 @@ object Config {
     if (props.containsKey("api")) api = props.getProperty("api")
     if (props.containsKey("bind-address")) bindAddress = new BindAddress(props.getProperty("bind-address"))
     if (props.containsKey("zk")) zk = props.getProperty("zk")
+    if (props.containsKey("executors-config")) executorsConfig = props.getProperty("executors-config")
   }
 
   override def toString: String = {
@@ -102,6 +103,7 @@ object Config {
       |mesos: master=$master, user=${if (user == null || user.isEmpty) "<default>" else user}, principal=${if (principal != null) principal else "<none>"}, secret=${if (secret != null) "*****" else "<none>"}
       |framework: name=$frameworkName, role=$frameworkRole, timeout=$frameworkTimeout
       |api: $api, bind-address: ${if (bindAddress != null) bindAddress else "<all>"}, zk: $zk, jre: ${if (jre == null) "<none>" else jre}
+      |executorsConfig=$executorsConfig
     """.stripMargin.trim
   }
 }

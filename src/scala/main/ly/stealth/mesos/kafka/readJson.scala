@@ -76,12 +76,10 @@ object readJson {
     }
   }
 
-  def main(args: Array[String]): Unit = {
-    if(args.length != 1) println("error .. expected a configuration file..")
-
-    val executors:List[Map[String, Any]] = JSON.parseFull(Source.fromFile(args(0)).mkString) match {
+  def loadExecutors(fileName:String) = {
+    val executors:List[Map[String, Any]] = JSON.parseFull(Source.fromFile(fileName).mkString) match {
       case Some(l) =>
-//        println(l)
+        //        println(l)
         l.asInstanceOf[List[Map[String, Any]]]
       case None => List()
     }
@@ -93,6 +91,12 @@ object readJson {
       dataMap += ("resources" -> getResourceInfo(exec("resources")))
       executorMap += (dataMap("name").asInstanceOf[String] -> dataMap)
     }
+  }
+
+  def main(args: Array[String]): Unit = {
+    if(args.length != 1) println("error .. expected a configuration file..")
+
+    loadExecutors(args(0))
     for(executor <- executorMap.keys){
       val map = executorMap(executor).asInstanceOf[Map[String,Any]]
       println("name: ", map("name"))
