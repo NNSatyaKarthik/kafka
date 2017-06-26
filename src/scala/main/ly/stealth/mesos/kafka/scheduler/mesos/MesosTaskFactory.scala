@@ -17,13 +17,14 @@
 package ly.stealth.mesos.kafka.scheduler.mesos
 
 import com.google.protobuf.{ByteString, Descriptors}
-import ly.stealth.mesos.kafka.Broker.{Container, ContainerType, MountMode}
+import ly.stealth.mesos.kafka.Broker.{Container, ContainerType, MountMode, Reservation}
 import ly.stealth.mesos.kafka._
 import ly.stealth.mesos.kafka.executor.LaunchConfig
 import ly.stealth.mesos.kafka.json.JsonUtil
 import ly.stealth.mesos.kafka.readJson.executorMap
 import ly.stealth.mesos.kafka.scheduler.KafkaDistributionComponent
 import net.elodina.mesos.util.Version
+import org.apache.log4j.Logger
 import org.apache.mesos.Protos.ContainerInfo.{DockerInfo, MesosInfo}
 import org.apache.mesos.Protos.Environment.Variable
 import org.apache.mesos.Protos._
@@ -45,8 +46,10 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
   val taskFactory: MesosTaskFactory = new MesosTaskFactoryImpl
 
   class MesosTaskFactoryImpl extends MesosTaskFactory {
+    private[this] val logger = Logger.getLogger("MesosTaskFactoryImpl")
+
     private[kafka] def newExecutor(broker: Broker): ExecutorInfo = {
-      if(broker.executor == null || broker.executor == "default") {
+      if (broker.executor == null || broker.executor == "default") {
         val distInfo = kafkaDistribution.distInfo
         var cmd = ""
         if (broker.executionOptions.container.isDefined) {
@@ -91,13 +94,13 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
           executor.setContainer(createContainerInfo(c, broker.id))
         }
         executor.build()
-      }else{
+      } else {
         for(executor <- executorMap.keys){
           val map = executorMap(executor).asInstanceOf[Map[String,Any]]
-          println("name: ", map("name"))
-          println("command: ", map("command"))
-          println("resources: ", map("resources"))
-          println("-------------------------------------------------------")
+          logger.info("name: " + map("name"))
+          logger.info("command: "+ map("command"))
+          logger.info("resources: "+  map("resources"))
+          logger.info("-------------------------------------------------------")
         }
         var cmd = "./executor"
         //        val cmd = "python dce-go-paypal-ipvlan-dev.py"
@@ -188,19 +191,22 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
           .setTaskId(TaskID.newBuilder.setValue(Broker.nextTaskId(broker)).build)
           .setSlaveId(offer.getSlaveId)
           .setData(taskData)
-        taskBuilder = populate(taskBuilder, broker)
+        taskBuilder = populate(taskBuilder, reservation, broker)
         taskBuilder
       }
       taskBuilder.addAllResources(reservation.toResources)
       taskBuilder.build
     }
-  }
-  def populate(taskBuilder: TaskInfo.Builder, broker:Broker): TaskInfo.Builder ={
-    if(!(broker.executor == null || broker.executor == "default")){
-      //        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
-      taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue("docker-compose.yml")))
+
+    def populate(taskBuilder: TaskInfo.Builder, reservation: Broker.Reservation, broker: Broker): TaskInfo.Builder = {
+      if (!(broker.executor == null || broker.executor == "default")) {
+        //        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
+        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue("docker-compose.yml")))
+      }
+      //    taskBuilder.addAllResources(reservation.toResources)
+      taskBuilder.setExecutor(newExecutor(broker))
+      //    Resource.newBuilder()
+      taskBuilder
     }
-    Resource.newBuilder()
-    taskBuilder
   }
 }
