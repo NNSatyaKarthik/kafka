@@ -95,29 +95,15 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         }
         executor.build()
       } else {
-        for(executor <- executorMap.keys){
-          val map = executorMap(executor).asInstanceOf[Map[String,Any]]
-          logger.info("name: " + map("name"))
-          logger.info("command: "+ map("command"))
-          logger.info("resources: "+  map("resources"))
-          logger.info("-------------------------------------------------------")
-        }
-        var cmd = "./executor"
-        //        val cmd = "python dce-go-paypal-ipvlan-dev.py"
-        val commandBuilder = CommandInfo.newBuilder
-        commandBuilder // HARDCODED VALUES IN HERE
-          .addUris(CommandInfo.URI.newBuilder().setValue("http://10.180.45.38:8888/data/docker-images/docker-compose.yml").setExtract(false).setExecutable(false))
-          .addUris(CommandInfo.URI.newBuilder().setValue("http://10.180.45.38:8888/data/executor-related/executor").setExtract(false).setExecutable(true))
-          .addUris(CommandInfo.URI.newBuilder().setValue("http://10.180.45.38:8888/data/executor-related/config.yaml").setExtract(false).setExecutable(true))
-          .addUris(CommandInfo.URI.newBuilder().setValue("http://10.180.45.38:8888/data/executor-related/general.yaml").setExtract(false).setExecutable(true))
-          //.addUris(CommandInfo.URI.newBuilder().setValue("https://cronus-srepo.qa.paypal.com/packages/hostutils/GO-DCE/dce-go-paypal-ipvlan/develop/dce-go-paypal-ipvlan.py").setExecutable(true).setExtract(false))
-          .setValue(cmd)
+        readJson.printExecutors()
+        val custom_exec:Map[String, Any] = readJson.executorMap(broker.executor).asInstanceOf[Map[String, Any]]
+        val commandBuilder = readJson.executorMap(broker.executor).asInstanceOf[Map[String, Any]]("command").asInstanceOf[CommandInfo]
 
         val executor = ExecutorInfo.newBuilder()
           .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
           .setCommand(commandBuilder)
           .setName("broker-dcego-" + broker.id)
-
+          .addAllResources(custom_exec("resources").asInstanceOf[List[Resource]])
         executor.build()
       }
     }
@@ -161,12 +147,9 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
     def newTask(broker: Broker, offer: Offer, reservation: Broker.Reservation): TaskInfo = {
       def populate(taskBuilder: TaskInfo.Builder, reservation: Broker.Reservation, broker: Broker): TaskInfo.Builder = {
         if (!(broker.executor == null || broker.executor == "default")) {
-          //        taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
-          taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue("docker-compose.yml")))
+          taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
         }
-        //    taskBuilder.addAllResources(reservation.toResources)
         taskBuilder.setExecutor(newExecutor(broker))
-        //    Resource.newBuilder()
         taskBuilder
       }
       val taskData = {

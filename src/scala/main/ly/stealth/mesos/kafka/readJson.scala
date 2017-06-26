@@ -24,8 +24,8 @@ object readJson {
       val res = resource("type").asInstanceOf[String] match {
         case "SCALAR" => resourceBuilder.setScalar(Scalar.newBuilder().setValue(resource("scalar").asInstanceOf[Map[String, Any]]("value").asInstanceOf[Double]))
           //TODO support SET AND RANGES types
-//        case "SET" => resourceBuilder.setSet(Value.Set.newBuilder().addAllItem(resource("set")))
-//        case "RANGES" => resourceBuilder.setRanges(Value.Ranges.newBuilder().setRange)
+//        case "SET" => resourceBuilder.setSet(Value.Set.newBuilder().addAllItem(resource("set").asInstanceOf[List[String]].).build())
+        case "RANGES" => resourceBuilder.setRanges(Value.Ranges.newBuilder.addRange(Value.Range.newBuilder().setBegin(resource("ranges").asInstanceOf[Long]).setEnd(resource("value").asInstanceOf[Long])))
         case _ =>
           println("Supporting only SCALAR as of now..")
           None
@@ -36,19 +36,17 @@ object readJson {
       resourceBuilder.build()
     }
 
+    var resourceInfo: List[Resource] = List[Resource]()
     resources match {
       case None =>
-        var resourceInfo: List[Resource] = List[Resource]()
         resourceInfo ::= Resource.newBuilder().setName("cpus").setType(Value.Type.SCALAR).setScalar(Scalar.newBuilder().setValue(0.25)).build()
         resourceInfo ::= Resource.newBuilder().setName("mem").setType(Value.Type.SCALAR).setScalar(Scalar.newBuilder().setValue(128)).build()
-        resourceInfo
       case ress:List[Any] =>
-        var resourceInfo: List[Resource] = List[Resource]()
         for(resource <- ress){
           resourceInfo ::= getResource(resource.asInstanceOf[Map[String,Any]])
         }
-        resourceInfo
     }
+    resourceInfo
   }
 
   def getCommandInfo(commandInfo: Any): CommandInfo = {
@@ -79,7 +77,6 @@ object readJson {
   def loadExecutors(fileName:String) = {
     val executors:List[Map[String, Any]] = JSON.parseFull(Source.fromFile(fileName).mkString) match {
       case Some(l) =>
-        //        println(l)
         l.asInstanceOf[List[Map[String, Any]]]
       case None => List()
     }
@@ -93,10 +90,7 @@ object readJson {
     }
   }
 
-  def main(args: Array[String]): Unit = {
-    if(args.length != 1) println("error .. expected a configuration file..")
-
-    loadExecutors(args(0))
+  def printExecutors(): Unit = {
     for(executor <- executorMap.keys){
       val map = executorMap(executor).asInstanceOf[Map[String,Any]]
       println("name: ", map("name"))
@@ -104,5 +98,12 @@ object readJson {
       println("resources: ", map("resources"))
       println("-------------------------------------------------------")
     }
+  }
+
+  def main(args: Array[String]): Unit = {
+    if(args.length != 1) println("error .. expected a configuration file..")
+
+    loadExecutors(args(0))
+    printExecutors()
   }
 }
