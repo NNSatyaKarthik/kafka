@@ -74,6 +74,8 @@ dependencies {
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "com.fasterxml.jackson.module:jackson-module-scala_$kafkaScalaVersion:$jacksonVersion"
+    compile group: 'com.typesafe.play', name: 'play-json_2.10', version: '2.4.0-M1'
+
 
     testCompile 'junit:junit:4.12'
     testCompile 'com.101tec:zkclient:0.7'

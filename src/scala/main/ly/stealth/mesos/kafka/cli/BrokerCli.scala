@@ -175,6 +175,7 @@ trait BrokerCli {
     }
 
     private def handleAddUpdate(expr: String, args: Array[String], add: Boolean, help: Boolean = false): Unit = {
+      //TODO add support for executor configuration here.
       val parser = newParser()
       parser.accepts("cpus", "cpu amount (0.5, 1, 2)").withRequiredArg().ofType(classOf[java.lang.Double])
       parser.accepts("mem", "mem amount in Mb").withRequiredArg().ofType(classOf[java.lang.Long])
@@ -184,6 +185,8 @@ trait BrokerCli {
       parser.accepts("bind-address", "broker bind address (broker0, 192.168.50.*, if:eth1). Default - auto").withRequiredArg().ofType(classOf[java.lang.String])
       parser.accepts("syslog", "enable syslog logging. Default - false").withRequiredArg().ofType(classOf[java.lang.String])
       parser.accepts("stickiness-period", "stickiness period to preserve same node for broker (5m, 10m, 1h)").withRequiredArg().ofType(classOf[String])
+      parser.accepts("executor", "custom executor used to invoke broker [default|dce-go]").withRequiredArg().ofType(classOf[String])
+      parser.accepts("executor-files", "Files that the Custom executor requires to run.[must be specified if using a custom executor]").withOptionalArg().ofType(classOf[String])
 
       parser.accepts("options", "options or file. Examples:\n log.dirs=/tmp/kafka/$id,num.io.threads=16\n file:server.properties").withRequiredArg()
       parser.accepts("log4j-options", "log4j options or file. Examples:\n log4j.logger.kafka=DEBUG\\, kafkaAppender\n file:log4j.properties").withRequiredArg()
@@ -225,6 +228,8 @@ trait BrokerCli {
       val bindAddress = options.valueOf("bind-address").asInstanceOf[String]
       val syslog = options.valueOf("syslog").asInstanceOf[String]
       val stickinessPeriod = options.valueOf("stickiness-period").asInstanceOf[String]
+      val executor = options.valueOf("executor").asInstanceOf[String]
+      val executorFiles = options.valueOf("executor-files").asInstanceOf[String]
 
       val constraints = options.valueOf("constraints").asInstanceOf[String]
       val options_ = options.valueOf("options").asInstanceOf[String]
@@ -251,6 +256,8 @@ trait BrokerCli {
       if (bindAddress != null) params.put("bindAddress", bindAddress)
       if (syslog != null) params.put("syslog", syslog)
       if (stickinessPeriod != null) params.put("stickinessPeriod", stickinessPeriod)
+      if (executor != null) params.put("executor", executor)
+      if (executorFiles != null) params.put("executorFiles", executorFiles)
 
       if (options_ != null) params.put("options", optionsOrFile(options_))
       if (constraints != null) params.put("constraints", constraints)

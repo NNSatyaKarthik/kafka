@@ -1,0 +1,88 @@
+[
+  {
+    "executor":{
+      "command":{
+        "value":"./executor",
+        "shell":"true",
+        "uris":[
+          {
+            "cache":false,
+            "executable":false,
+            "extract":false,
+            "value":"http://10.180.45.38:8888/data/docker-images/docker-compose.yml"
+          },
+          {
+            "cache":false,
+            "executable":true,
+            "extract":false,
+            "value":"http://10.180.45.38:8888/data/executor-related/executor"
+          },
+          {
+            "cache":false,
+            "executable":true,
+            "extract":false,
+            "value":"http://10.180.45.38:8888/data/executor-related/config.yaml"
+          },
+          {
+            "cache":false,
+            "executable":true,
+            "extract":false,
+            "value":"http://10.180.45.38:8888/data/executor-related/general.yaml"
+          }
+        ]
+      },
+      "name":"dce-go",
+      "resources":[
+        {
+          "name": "cpus",
+          "type": "SCALAR",
+          "scalar": {
+            "value": 0.25
+          }
+        },
+        {
+          "name": "mem",
+          "type": "SCALAR",
+          "scalar": {
+            "value": 128
+          }
+        }
+      ]
+    },
+    "task_prefix":"broker-dce-go-"
+  },
+  {
+    "executor":{
+      "command":{
+        "value":"java -jar docker-compose-executor_0.1.1.jar",
+        "shell":"true",
+        "uris":[
+          {
+            "cache":false,
+            "executable":true,
+            "extract":false,
+            "value":"https://github.com/mesos/docker-compose-executor/releases/download/0.1.1/docker-compose-executor_0.1.1.jar"
+          }
+        ]
+      },
+      "name":"docker-compose-executor",
+      "resources":[
+        {
+          "name": "cpus",
+          "type": "SCALAR",
+          "scalar": {
+            "value": 0.25
+          }
+        },
+        {
+          "name": "mem",
+          "type": "SCALAR",
+          "scalar": {
+            "value": 128
+          }
+        }
+      ]
+    },
+    "task_prefix":"compose-"
+  }
+]

@@ -21,7 +21,10 @@ import org.junit.Test
 import org.junit.Assert._
 import net.elodina.mesos.util.{Constraint, Period, Range}
 import ly.stealth.mesos.kafka.Broker.{Endpoint, ExecutionOptions, Failover, Stickiness, Task}
+
+import scala.collection.mutable
 import scala.io.Source
+import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
 
 class JsonTest {
 
@@ -86,5 +89,37 @@ class JsonTest {
       )
     )
     assertEquals(t, topic)
+  }
+
+  @Test
+  def parse_test(): Unit = {
+    //construct the json object.
+    var map:Map[String, Any] = Map()
+    var submap:Map[String, Any] = Map[String, Any]()
+    submap += ("name" -> "dce-go")
+    val list = "1":: "2" :: "3":: Nil
+    println(JSONArray(list).toString())
+    submap += ("uris" -> JSONArray(list))
+    map += ("karthik" -> "1")
+    map += ("executor" -> JSONObject(submap))
+    println(map)
+    println(JSONObject(map))
+    val str = JSONObject(map).toString()
+    println(JSON.parseFull(str))
+
+    val data = JSON.parseFull(str)
+    data match {
+      case Some(d) => {
+        for {
+          (k, v) <- d.asInstanceOf[Map[String, Any]]
+        } println(k, v)
+        d.asInstanceOf[Map[String, Any]]
+      }
+      case None => {
+        println("Received None.. in teh post method request param")
+        Map[String, String]()
+      }
+      case _ => Map[String, String]()
+    }
   }
 }

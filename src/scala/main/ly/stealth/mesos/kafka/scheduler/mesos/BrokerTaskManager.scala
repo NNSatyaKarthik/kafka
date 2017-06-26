@@ -67,7 +67,7 @@ trait BrokerTaskManagerComponentImpl extends BrokerTaskManagerComponent {
 
       broker.needsRestart = false
       val reservation = broker.getReservation(offer)
-      val task_ = taskFactory.newTask(broker, offer, reservation)
+      val task_ = taskFactory.newTask(broker, offer, reservation) // this is where the new task is generated from the task factory.
       val id = task_.getTaskId.getValue
 
       val attributes = offer.getAttributesList
@@ -76,7 +76,7 @@ trait BrokerTaskManagerComponentImpl extends BrokerTaskManagerComponent {
         .map(a => a.getName -> a.getText.getValue)
         .toMap
 
-      Driver.call(_.launchTasks(Seq(offer.getId).asJava, Seq(task_).asJava))
+      Driver.call(_.launchTasks(Seq(offer.getId).asJava, Seq(task_).asJava))//???????TODO what does this do.. is this how the broker is getting launched.
       logger
         .info(s"Starting broker ${broker.id}: launching task $id by offer " +
           s"${offer.getHostname + Repr.id(offer.getId.getValue)}\n ${Repr.task(task_)}")

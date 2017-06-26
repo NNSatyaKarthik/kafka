@@ -40,7 +40,8 @@ class Broker(val id: Int = 0) {
   var volume: String = null
   var bindAddress: BindAddress = null
   var syslog: Boolean = false
-
+  var executor: String = "default"
+  var executorFiles: String = null
   var constraints: Map[String, Constraint] = Map()
   var options: Map[String, String] = Map()
   var log4jOptions: Map[String, String] = Map()
