@@ -18,9 +18,13 @@ package ly.stealth.mesos.kafka.scheduler.http.api
 
 import javax.ws.rs.core.Response
 import javax.ws.rs.core.Response.StatusType
+
+import ly.stealth.mesos.kafka.Util
 import net.elodina.mesos.util.{Constraint, Strings}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.util.parsing.json.JSON
 
 class StringMap(value: String) extends mutable.HashMap[String, String] {
   this ++= Strings.parseMap(value).asScala
@@ -28,6 +32,18 @@ class StringMap(value: String) extends mutable.HashMap[String, String] {
 
 class ConstraintMap(value: String) extends mutable.HashMap[String, Constraint] {
   this ++= Strings.parseMap(value).asScala.mapValues(new Constraint(_))
+}
+
+class ExecutorMap(value: String) extends mutable.HashMap[String, Any] {
+  this ++= Util.getDataMap(JSON.parseFull(value))
+/*  val dmap: Map[String, Any] = Util.getDataMap(Some(value))
+  this += ("name" -> dmap.getOrElse("name", "default").asInstanceOf[String])
+  if(dmap.contains("resources")){
+    this += ("resources" -> dmap("resources").asInstanceOf[List[Any]])
+  }
+  if(dmap.contains("labels")){
+    this += ("labels" -> dmap("labels").asInstanceOf[List[Any]])
+  }*/
 }
 
 object Status {

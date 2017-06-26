@@ -49,7 +49,7 @@ object readJson {
     resourceInfo
   }
 
-  def getCommandInfo(commandInfo: Any): CommandInfo = {
+  def getCommandInfo(commandInfo: Any): CommandInfo.Builder = {
     commandInfo match {
       case command:Map[String, Any] =>
         val cmdInfo = CommandInfo.newBuilder()
@@ -70,10 +70,24 @@ object readJson {
 //            println(urib.build())
           }
         }
-        cmdInfo.build()
+        cmdInfo
     }
   }
 
+  def getLabels(labels: Any): Labels.Builder ={
+    val labelsBuilder = Labels.newBuilder()
+    labels match {
+      case lbls:List[Any] =>
+        for(label <- lbls){
+          label match {
+            case lbl:Map[String, String] =>
+              labelsBuilder.addLabels(Label.newBuilder().setKey(lbl("key")).setValue(lbl("value")).build())
+          }
+        }
+        labelsBuilder
+    }
+
+  }
   def loadExecutors(fileName:String) = {
     val executors:List[Map[String, Any]] = JSON.parseFull(Source.fromFile(fileName).mkString) match {
       case Some(l) =>
@@ -86,6 +100,7 @@ object readJson {
       dataMap += ("name" -> exec("name").asInstanceOf[String])
       dataMap += ("command" -> getCommandInfo(exec("command")))
       dataMap += ("resources" -> getResourceInfo(exec("resources")))
+      dataMap += ("labels" -> getLabels(exec("labels")))
       executorMap += (dataMap("name").asInstanceOf[String] -> dataMap)
     }
   }
@@ -96,6 +111,7 @@ object readJson {
       println("name: ", map("name"))
       println("command: ", map("command"))
       println("resources: ", map("resources"))
+      println("labels: ", map("labels"))
       println("-------------------------------------------------------")
     }
   }

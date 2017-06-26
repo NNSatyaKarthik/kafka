@@ -7,12 +7,6 @@
         "uris":[
           {
             "cache":false,
-            "executable":false,
-            "extract":false,
-            "value":"http://10.180.45.38:8888/data/docker-images/docker-compose.yml"
-          },
-          {
-            "cache":false,
             "executable":true,
             "extract":false,
             "value":"http://10.180.45.38:8888/data/executor-related/executor"

@@ -49,7 +49,7 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
     private[this] val logger = Logger.getLogger("MesosTaskFactoryImpl")
 
     private[kafka] def newExecutor(broker: Broker): ExecutorInfo = {
-      if (broker.executor == null || broker.executor == "default") {
+      if (broker.executor.isEmpty || broker.executor("name") == "default") {
         val distInfo = kafkaDistribution.distInfo
         var cmd = ""
         if (broker.executionOptions.container.isDefined) {
@@ -96,13 +96,17 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         executor.build()
       } else {
         readJson.printExecutors()
-        val custom_exec:Map[String, Any] = readJson.executorMap(broker.executor).asInstanceOf[Map[String, Any]]
-        val commandBuilder = readJson.executorMap(broker.executor).asInstanceOf[Map[String, Any]]("command").asInstanceOf[CommandInfo]
-
+        val execMap = broker.executor
+        val name = execMap("name").asInstanceOf[String]
+        val custom_exec:Map[String, Any] = readJson.executorMap(name).asInstanceOf[Map[String, Any]]
+        val commandBuilder = custom_exec("command").asInstanceOf[CommandInfo.Builder]
+        for(resource <- execMap("resources").asInstanceOf[List[Any]]){
+          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(resource.asInstanceOf[String]).setExtract(true).setCache(false).build())
+        }
         val executor = ExecutorInfo.newBuilder()
           .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
-          .setCommand(commandBuilder)
-          .setName("broker-dcego-" + broker.id)
+          .setCommand(commandBuilder.build())
+          .setName("broker"+custom_exec("name")+"-" + broker.id)
           .addAllResources(custom_exec("resources").asInstanceOf[List[Resource]])
         executor.build()
       }
@@ -146,9 +150,23 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
 
     def newTask(broker: Broker, offer: Offer, reservation: Broker.Reservation): TaskInfo = {
       def populate(taskBuilder: TaskInfo.Builder, reservation: Broker.Reservation, broker: Broker): TaskInfo.Builder = {
-        if (!(broker.executor == null || broker.executor == "default")) {
-          taskBuilder.setLabels(Labels.newBuilder().addLabels(Label.newBuilder().setKey("fileName").setValue(broker.executorFiles)))
+        val execMap = broker.executor
+        if (!(execMap.isEmpty || execMap.getOrElse("name", "default").asInstanceOf[String] == "default")) {
+          val labels = execMap("labels").asInstanceOf[List[Any]]
+          val custom_exec = readJson.executorMap(execMap("name").asInstanceOf[String]).asInstanceOf[Map[String,Any]]
+          if(labels.nonEmpty){
+            val labelsBuilder = if(custom_exec.contains("labels")) {
+              custom_exec("labels").asInstanceOf[Labels.Builder]
+            }else{
+              Labels.newBuilder()
+            }
+            for(label <- labels){
+              labelsBuilder.addLabels(Label.newBuilder().setKey(label.asInstanceOf[Map[String, String]]("key")).setValue(label.asInstanceOf[Map[String, String]]("value")))
+            }
+            taskBuilder.setLabels(labelsBuilder.build())
+          }
         }
+
         taskBuilder.setExecutor(newExecutor(broker))
         taskBuilder
       }
