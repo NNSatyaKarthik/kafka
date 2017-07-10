@@ -1,26 +1,26 @@
 /**
-  * Licensed to the Apache Software Foundation (ASF) under one or more
-  * contributor license agreements.  See the NOTICE file distributed with
-  * this work for additional information regarding copyright ownership.
-  * The ASF licenses this file to You under the Apache License, Version 2.0
-  * (the "License"); you may not use this file except in compliance with
-  * the License.  You may obtain a copy of the License at
-  *
-  *    http://www.apache.org/licenses/LICENSE-2.0
-  *
-  * Unless required by applicable law or agreed to in writing, software
-  * distributed under the License is distributed on an "AS IS" BASIS,
-  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  * See the License for the specific language governing permissions and
-  * limitations under the License.
-  */
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package ly.stealth.mesos.kafka.scheduler.http.api
 
 import java.lang.{Boolean => JBool, Double => JDouble, Integer => JInt, Long => JLong}
 import java.util.concurrent.{TimeUnit, TimeoutException}
 import javax.ws.rs.core.{MediaType, Response}
 import javax.ws.rs.{Produces, _}
-import ly.stealth.mesos.kafka.Broker.{Container, ContainerType, ExecutionOptions, Mount, State}
+import ly.stealth.mesos.kafka.Broker._
 import ly.stealth.mesos.kafka.Util.BindAddress
 import ly.stealth.mesos.kafka._
 import ly.stealth.mesos.kafka.RunnableConversions._
@@ -73,22 +73,13 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
     @Produces(Array(MediaType.APPLICATION_JSON))
     def listBrokersGet(@BothParam("broker") broker: String) = listBrokers(broker)
 
-    /*def getResponseFromBrokerAddUpdate(operation: String, broker: String, executor: String, executorFiles: String,
-                                       cpus: JDouble, mem: JLong, heap: JLong, port: Range, volume: String, bindAddress: BindAddress,
-                                       syslog: Boolean, stickinessPeriod: Period, constraints: ConstraintMap, options: StringMap,
-                                       log4jOptions: StringMap, jvmOptions: String, failoverMaxTries: JInt, failoverMaxDelay: Period,
-                                       failoverDelay: Period, javaCmd: String, containerTypeStr: String,
-                                       containerImage: String, containerMounts: String): Response = {
-
-    }*/
-
     @Path("{op: (add|update)}")
     @POST
     @Produces(Array(MediaType.APPLICATION_JSON))
     @Consumes(Array(MediaType.APPLICATION_JSON))
     def addBroker(@PathParam("op") operation: String, data: Option[Any]): Response = {
       var dmap: Map[String, Any] = Util.getDataMap(data)
-      println("recieving data response from json argument..")
+      println("recieving data response from json argument..", data)
 
       var cpus = if (dmap.contains("cpus")) {
         new JDouble(dmap("cpus").asInstanceOf[String])
@@ -156,62 +147,81 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         null
       }
 
+      // currently contains only the information from the input
       val executorMap = if(dmap.contains("executor")) {
-        new ExecutorMap(dmap("executor").asInstanceOf[String])
-      } else null
-      println(dmap)
-      /*      getResponseFromBrokerAddUpdate(operation, dmap.getOrElse("broker", null),
-              dmap.getOrElse("executor", null), dmap.getOrElse("executorFiles", null),
-              cpus, mem,heap, port, dmap.getOrElse("volume", null), bindAddress, syslog,
-              stickinessPeriod, constraints, options, log4jOptions, dmap.getOrElse("jvmOptions", null),
-              failoverMaxTries, failoverMaxDelay, failoverDelay, dmap.getOrElse("javaCmd", null),
-              dmap.getOrElse("containerTypeStr", null), dmap.getOrElse("containerImage", null),
-              dmap.getOrElse("containerMounts", null))*/
+        new CustomExecutor(dmap("executor").asInstanceOf[Map[String, Any]])
+      } else CustomExecutor()
+
+      //converts the passed information into stringmap like string
+      println("BrokerAPi:164, ", dmap)
+      val executorLabels:String = {
+        var res:String = ""
+        for(label <- executorMap.labels){
+          label match {
+            case lbl:Map[String, String] =>
+              if(res.nonEmpty) res += ","
+              res += lbl("key") + "=" + lbl("value")
+            case lbl:mutable.Map[String, String] =>
+              if(res.nonEmpty) res += ","
+              res += lbl("key") + "=" + lbl("value")
+          }
+        }
+        res
+      }
+      //converts the passed resources to stringlist for list of strings
+      val executorResources:String = {
+        var res= ""
+        for(resource <- executorMap.resources){
+          if(res.nonEmpty) res += ","
+          res += resource
+        }
+        res
+      }
+
       addBroker(operation, dmap.getOrElse("broker", null).asInstanceOf[String],
         cpus, mem, heap, port, dmap.getOrElse("volume", null).asInstanceOf[String], bindAddress, syslog,
         stickinessPeriod,
-        executorMap,
+        executorMap.name,
+        executorResources,
+        new StringMap(executorLabels),
         options, log4jOptions, dmap.getOrElse("jvmOptions", null).asInstanceOf[String], constraints,
         failoverDelay, failoverMaxDelay, failoverMaxTries, dmap.getOrElse("javaCmd", null).asInstanceOf[String],
         dmap.getOrElse("containerType", null).asInstanceOf[String], dmap.getOrElse("containerImage", null).asInstanceOf[String],
         dmap.getOrElse("containerMounts", null).asInstanceOf[String])
     }
 
+
     @Path("{op: (add|update)}")
     @POST
     @Produces(Array(MediaType.APPLICATION_JSON))
     def addBroker(
-                   @PathParam("op") operation: String,
-                   @BothParam("broker") broker: String,
-                   @BothParam("cpus") cpus: JDouble,
-                   @BothParam("mem") mem: JLong,
-                   @BothParam("heap") heap: JLong,
-                   @BothParam("port") port: Range,
-                   @BothParam("volume") volume: String,
-                   @BothParam("bindAddress") bindAddress: BindAddress,
-                   @BothParam("syslog") syslog: JBool,
-                   @BothParam("stickinessPeriod") stickinessPeriod: Period,
-                   @BothParam("executor") executor: ExecutorMap,
-                   @BothParam("options") options: StringMap,
-                   @BothParam("log4jOptions") log4jOptions: StringMap,
-                   @BothParam("jvmOptions") jvmOptions: String,
-                   @BothParam("constraints") constraints: ConstraintMap,
-                   @BothParam("failoverDelay") failoverDelay: Period,
-                   @BothParam("failoverMaxDelay") failoverMaxDelay: Period,
-                   @BothParam("failoverMaxTries") failoverMaxTries: JInt,
-                   @BothParam("javaCmd") javaCmd: String,
-                   @BothParam("containerType") containerTypeStr: String,
-                   @BothParam("containerImage") containerImage: String,
-                   @BothParam("containerMounts") containerMounts: String
+                @PathParam("op") operation: String,
+                @BothParam("broker") broker: String,
+                @BothParam("cpus") cpus: JDouble,
+                @BothParam("mem") mem: JLong,
+                @BothParam("heap") heap: JLong,
+                @BothParam("port") port: Range,
+                @BothParam("volume") volume: String,
+                @BothParam("bindAddress") bindAddress: BindAddress,
+                @BothParam("syslog") syslog: JBool,
+                @BothParam("stickinessPeriod") stickinessPeriod: Period,
+                @DefaultValue("default") @BothParam("executorName") executorName: String,
+                @BothParam("executorResources") executorResources: String,
+                @BothParam("executorLabels") executorLabels: StringMap,
+                @BothParam("options") options: StringMap,
+                @BothParam("log4jOptions") log4jOptions: StringMap,
+                @BothParam("jvmOptions") jvmOptions: String,
+                @BothParam("constraints") constraints: ConstraintMap,
+                @BothParam("failoverDelay") failoverDelay: Period,
+                @BothParam("failoverMaxDelay") failoverMaxDelay: Period,
+                @BothParam("failoverMaxTries") failoverMaxTries: JInt,
+                @BothParam("javaCmd") javaCmd: String,
+                @BothParam("containerType") containerTypeStr: String,
+                @BothParam("containerImage") containerImage: String,
+                @BothParam("containerMounts") containerMounts: String
+//                @BothParam("role") role: String
                  ): Response = {
-      /*getResponseFromBrokerAddUpdate(operation, broker, executor, executorFiles, cpus, mem, heap, port,
-        volume, bindAddress, if (syslog != null) {
-          syslog
-        } else {
-          false
-        }, stickinessPeriod, constraints, options, log4jOptions, jvmOptions,
-        failoverMaxTries, failoverMaxDelay, failoverDelay, javaCmd, containerTypeStr, containerImage, containerMounts)*/
-
+      println("in the method.. which consumes url/encoded..executorname value: ", executorName)
       val add = operation == "add"
       val errors = mutable.Buffer[String]()
       if (broker == null) {
@@ -248,11 +258,8 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
 
         brokers.append(broker)
       }
-
       if (errors.nonEmpty) {
-        //(false, errors)
         return Status.BadRequest(errors.mkString("; '"))
-
       }
 
       for (broker <- brokers) {
@@ -264,8 +271,26 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         if (bindAddress != null) broker.bindAddress = bindAddress
         if (syslog != null) broker.syslog = syslog
         if (stickinessPeriod != null) broker.stickiness.period = stickinessPeriod
-        if (executor != null && executor.nonEmpty) {
-          broker.executor ++= executor
+        // only taking care of input.. config.json doesn't come into play yet
+        if (executorName != "default") {
+          broker.executor.name = executorName
+          broker.executor.resources= executorResources.split(",").toList
+          broker.executor.labels = List()
+          //parses the passed in labels and sets the broker.executor.labels to that
+          // last value of the passed in labesl with same key will be given preference.
+          var isPresent = false
+          for(lbl <- executorLabels) {
+            isPresent = false
+            for(exec_lbl <- broker.executor.labels){
+              if(lbl._1 == exec_lbl("key")){
+                isPresent = true
+                exec_lbl.update("value", lbl._2)
+              }
+            }
+            if(!isPresent){
+              broker.executor.labels ::= mutable.Map("key" -> lbl._1, "value" -> lbl._2)
+            }
+          }
         }
         if (constraints != null) broker.constraints = constraints.toMap
         if (options != null) broker.options = options.toMap
@@ -306,7 +331,6 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         broker.executionOptions = broker.executionOptions.copy(
           container = broker.executionOptions.container.map(_.copy(mounts = newMounts))
         )
-
         if (add) cluster.addBroker(broker)
         else if (broker.active || broker.task != null) broker.needsRestart = true
       }
@@ -316,9 +340,9 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
       Response.status(Response.Status.OK).entity(resp).build()
     }
 
+
     private val noFn = new PartialFunction[Broker, Broker] {
       override def isDefinedAt(x: Broker): Boolean = false
-
       override def apply(v1: Broker): Broker = ???
     }
 
@@ -394,11 +418,11 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
     @POST
     @Produces(Array(MediaType.APPLICATION_JSON))
     def startStopBroker(
-                         @PathParam("op") operation: String,
-                         @DefaultValue("60s") @BothParam("timeout") timeout: Period,
-                         @BothParam("force") force: Boolean,
-                         @BothParam("broker") expr: String
-                       ): Response = {
+      @PathParam("op") operation: String,
+      @DefaultValue("60s") @BothParam("timeout") timeout: Period,
+      @BothParam("force") force: Boolean,
+      @BothParam("broker") expr: String
+    ): Response = {
       logger.info(s"Handling $operation for broker $expr")
 
       val start = operation == "start"
@@ -409,7 +433,6 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         case Failure(e) => Status.BadRequest(e.getMessage)
       }
     }
-
 
     private def startStopBrokersImpl(brokers: Seq[Broker], start: Boolean, timeout: Period, force: Boolean) = {
       eventLoop.submit(() =>

@@ -108,8 +108,8 @@ object readJson {
   def printExecutors(): Unit = {
     for(executor <- executorMap.keys){
       val map = executorMap(executor).asInstanceOf[Map[String,Any]]
-      println("name: ", map("name"))
-      println("command: ", map("command"))
+      println("name: ", map.getOrElse("name", "NOTFOUND"))
+      println("command: ", map.getOrElse("command","NOTFOUND"))
       println("resources: ", map.getOrElse("resources", "NOTFOUND"))
       println("labels: ", map.getOrElse("labels", "NOTFOUND"))
       println("-------------------------------------------------------")

@@ -30,7 +30,7 @@ import org.apache.mesos.Protos.Environment.Variable
 import org.apache.mesos.Protos._
 
 import scala.collection.mutable
-import scala.collection.JavaConversions._
+import scala.collection.JavaConversions.{collectionAsScalaIterable, _}
 
 trait MesosTaskFactoryComponent {
   val taskFactory: MesosTaskFactory
@@ -49,7 +49,7 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
     private[this] val logger = Logger.getLogger("MesosTaskFactoryImpl")
 
     private[kafka] def newExecutor(broker: Broker): ExecutorInfo = {
-      if (broker.executor.isEmpty || broker.executor("name") == "default") {
+      if (broker.executor.name == "default") {
         val distInfo = kafkaDistribution.distInfo
         var cmd = ""
         if (broker.executionOptions.container.isDefined) {
@@ -95,20 +95,23 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         }
         executor.build()
       } else {
-        readJson.printExecutors()
-        val execMap = broker.executor
-        val name = execMap("name").asInstanceOf[String]
-        val custom_exec:Map[String, Any] = readJson.executorMap(name).asInstanceOf[Map[String, Any]]
-        val commandBuilder = custom_exec("command").asInstanceOf[CommandInfo.Builder]
-        for(resource <- execMap("resources").asInstanceOf[List[Any]]){
+//        readJson.printExecutors()
+        val customExecutor = broker.executor
+        val name = customExecutor.name
+        val configExec:Map[String, Any] = readJson.executorMap(name).asInstanceOf[Map[String, Any]]
+        val uris = configExec("command").asInstanceOf[CommandInfo.Builder].getUrisList
+        val commandBuilder = CommandInfo.newBuilder().addAllUris(uris)
+        for(resource <- customExecutor.resources){
           commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(resource.asInstanceOf[String]).setExtract(true).setCache(false).build())
         }
         val executor = ExecutorInfo.newBuilder()
           .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
           .setCommand(commandBuilder.build())
-          .setName("broker"+custom_exec("name")+"-" + broker.id)
-          .addAllResources(custom_exec("resources").asInstanceOf[List[Resource]])
+          .setName("broker"+configExec("name")+"-" + broker.id)
+          .addAllResources(configExec("resources").asInstanceOf[List[Resource]])
+        //println("executor.build().toString:: ",executor.build().toString)
         executor.build()
+
       }
     }
 
@@ -149,24 +152,27 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
 
 
     def newTask(broker: Broker, offer: Offer, reservation: Broker.Reservation): TaskInfo = {
-      def populate(taskBuilder: TaskInfo.Builder, reservation: Broker.Reservation, broker: Broker): TaskInfo.Builder = {
-        val execMap = broker.executor
-        if (!(execMap.isEmpty || execMap.getOrElse("name", "default").asInstanceOf[String] == "default")) {
-          val labels = execMap("labels").asInstanceOf[List[Any]]
-          val custom_exec = readJson.executorMap(execMap("name").asInstanceOf[String]).asInstanceOf[Map[String,Any]]
-          if(labels.nonEmpty){
-            val labelsBuilder = if(custom_exec.contains("labels")) {
-              custom_exec("labels").asInstanceOf[Labels.Builder]
+      def populate(taskBuilder: TaskInfo.Builder, broker: Broker): TaskInfo.Builder = {
+        val customExecutor = broker.executor // get the broker executor
+
+        if (customExecutor.name != "default") {
+          val configExec = readJson.executorMap(customExecutor.name).asInstanceOf[Map[String,Any]]
+          if(customExecutor.labels.nonEmpty){ // only iterates over the inputs that are passed in http json
+            val labelsBuilder = if(configExec.contains("labels")) {
+              configExec("labels").asInstanceOf[Labels.Builder]
             }else{
               Labels.newBuilder()
             }
-            for(label <- labels){
-              labelsBuilder.addLabels(Label.newBuilder().setKey(label.asInstanceOf[Map[String, String]]("key")).setValue(label.asInstanceOf[Map[String, String]]("value")))
+            for(label <- customExecutor.labels){
+              labelsBuilder.addLabels(Label.newBuilder().setKey(label("key")).setValue(label("value")))
             }
             taskBuilder.setLabels(labelsBuilder.build())
           }
+          //TODO add here additional for loop to read labels from the config.json
+          //TODO also make sure if multiple labels from config and input match.. take precedence over input params over config
+//         as in dont' update the values if exists.. just ignore as we are first adding the data form the input
+//          later reading hte config at the end before executing.
         }
-
         taskBuilder.setExecutor(newExecutor(broker))
         taskBuilder
       }
@@ -203,12 +209,13 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
           .setTaskId(TaskID.newBuilder.setValue(Broker.nextTaskId(broker)).build)
           .setSlaveId(offer.getSlaveId)
           .setData(taskData)
-        taskBuilder = populate(taskBuilder, reservation, broker)
+        taskBuilder = populate(taskBuilder, broker)
         taskBuilder
       }
+
       taskBuilder.addAllResources(reservation.toResources)
+      //println("MesosTaskFactory:220:: taskBuilder", taskBuilder)
       taskBuilder.build
     }
-
   }
 }

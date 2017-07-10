@@ -19,16 +19,22 @@ package ly.stealth.mesos.kafka
 
 import java.util
 import java.util.{Date, UUID}
+
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Resource.DiskInfo.{Persistence, Source}
 import org.apache.mesos.Protos.Volume.Mode
+
 import scala.collection.JavaConversions._
 import org.apache.mesos.Protos.{Offer, Resource, Value, Volume}
-import ly.stealth.mesos.kafka.Broker.{ExecutionOptions, Failover, Metrics, Stickiness}
+import ly.stealth.mesos.kafka.Broker._
 import ly.stealth.mesos.kafka.Util.BindAddress
 import ly.stealth.mesos.kafka.json.JsonUtil
+import ly.stealth.mesos.kafka.scheduler.http.api.StringMap
 import ly.stealth.mesos.kafka.scheduler.mesos.OfferResult
 import net.elodina.mesos.util.{Constraint, Period, Range, Repr}
+
+import scala.collection.mutable
+import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
 
 class Broker(val id: Int = 0) {
   @volatile var active: Boolean = false
@@ -36,11 +42,12 @@ class Broker(val id: Int = 0) {
   var cpus: Double = 1
   var mem: Long = 2048
   var heap: Long = 1024
+//  var disk: Double = 1024
   var port: Range = null
   var volume: String = null
   var bindAddress: BindAddress = null
   var syslog: Boolean = false
-  var executor: Map[String, Any] = Map()
+  var executor: CustomExecutor = CustomExecutor()
   var constraints: Map[String, Constraint] = Map()
   var options: Map[String, String] = Map()
   var log4jOptions: Map[String, String] = Map()
@@ -64,7 +71,8 @@ class Broker(val id: Int = 0) {
     if (reservation.cpus < cpus) return OfferResult.neverMatch(offer, this, s"cpus < $cpus")
     if (reservation.mem < mem) return OfferResult.neverMatch(offer, this, s"mem < $mem")
     if (reservation.port == -1) return OfferResult.neverMatch(offer, this, "no suitable port")
-
+//    if (reservation.disk < disk) return OfferResult.neverMatch(offer, this, s"not enough disk space..on the slave.. " +
+//      s"required [if principal is enabled only dynamically reserved disk space will be considered..]: $disk")
     // check volume
     if (volume != null && reservation.volume == null)
       return OfferResult.neverMatch(offer, this, s"offer missing volume: $volume")
@@ -105,6 +113,11 @@ class Broker(val id: Int = 0) {
     var reservedSharedCpus: Double = 0
     var reservedRoleCpus: Double = 0
 
+//    var sharedDisk: Double = 0
+//    var roleDisk: Double = 0
+//    var reservedSharedDisk: Double = 0
+//    var reservedRoleDisk: Double = 0
+
     var sharedMem: Long = 0
     var roleMem: Long = 0
     var reservedSharedMem: Long = 0
@@ -122,23 +135,37 @@ class Broker(val id: Int = 0) {
     var reservedVolumePrincipal: String = null
     var reservedVolumeSource: Source = null
 
+    println("Repr.offer(offer):: ", Repr.offer(offer))
     for (resource <- offer.getResourcesList) {
+//      println("Evaluating resource:: ", resource, resource.getName, resource.getRole)
+
       if (resource.getRole == "*") {
         // shared resources
         if (resource.getName == "cpus") sharedCpus = resource.getScalar.getValue
         if (resource.getName == "mem") sharedMem = resource.getScalar.getValue.toLong
         if (resource.getName == "ports") sharedPorts.addAll(resource.getRanges.getRangeList.map(r => new Range(r.getBegin.toInt, r.getEnd.toInt)))
+//        if (resource.getName == "disk") sharedDisk = resource.getScalar.getValue
       } else {
         if (role != null && role != resource.getRole)
           throw new IllegalArgumentException(s"Offer contains 2 non-default roles: $role, ${resource.getRole}")
         role = resource.getRole
 
+//        println("resource has reservation: ", resource.hasReservation, resource.hasDisk)
         // static role-reserved resources
-        if (!resource.hasReservation) {
+        if (!resource.hasReservation) { // this method is used to test out for dynamic reservations. // it has a principla with in the resource.
           if (resource.getName == "cpus") roleCpus = resource.getScalar.getValue
           if (resource.getName == "mem") roleMem = resource.getScalar.getValue.toLong
           if (resource.getName == "ports") rolePorts.addAll(resource.getRanges.getRangeList.map(r => new Range(r.getBegin.toInt, r.getEnd.toInt)))
+//          if (resource.getName == "disk") roleDisk = resource.getScalar.getValue
         }
+//        else{
+////          if (resource.getRole == this.role && Config.principal != null && resource.getReservation.getPrincipal == Config.principal) {
+//            if (resource.getName == "cpus") roleCpus = resource.getScalar.getValue
+//            if (resource.getName == "mem") roleMem = resource.getScalar.getValue.toLong
+//            if (resource.getName == "ports") rolePorts.addAll(resource.getRanges.getRangeList.map(r => new Range(r.getBegin.toInt, r.getEnd.toInt)))
+//            if (resource.getName == "disk") roleDisk = resource.getScalar.getValue
+////          }
+//        }
 
         // dynamic role/principal-reserved volume
         if (volume != null && resource.hasDisk && resource.getDisk.hasPersistence && resource.getDisk.getPersistence.getId == volume) {
@@ -154,6 +181,9 @@ class Broker(val id: Int = 0) {
     reservedRoleCpus = Math.min(cpus, roleCpus)
     reservedSharedCpus = Math.min(cpus - reservedRoleCpus, sharedCpus)
 
+//    reservedRoleDisk = Math.min(disk, roleDisk)
+//    reservedSharedDisk = Math.min(disk - reservedRoleDisk, sharedDisk)
+
     reservedRoleMem = Math.min(mem, roleMem)
     reservedSharedMem = Math.min(mem - reservedRoleMem, sharedMem)
 
@@ -161,10 +191,19 @@ class Broker(val id: Int = 0) {
     if (reservedRolePort == -1)
       reservedSharedPort = getSuitablePort(sharedPorts)
 
+    println("Broker.scala:172::Reservation:   ",role,
+      reservedSharedCpus, reservedRoleCpus,
+      reservedSharedMem, reservedRoleMem,
+      reservedSharedPort, reservedRolePort,
+//      reservedSharedDisk, reservedRoleDisk,
+      reservedVolume, reservedVolumeSize,
+      reservedVolumePrincipal, reservedVolumeSource)
+
     new Broker.Reservation(role,
       reservedSharedCpus, reservedRoleCpus,
       reservedSharedMem, reservedRoleMem,
       reservedSharedPort, reservedRolePort,
+//      reservedSharedDisk, reservedRoleDisk,
       reservedVolume, reservedVolumeSize,
       reservedVolumePrincipal, reservedVolumeSource
     )
@@ -266,7 +305,7 @@ class Broker(val id: Int = 0) {
     nb.failover.maxDelay = failover.maxDelay
     nb.failover.maxTries = failover.maxTries
     nb.executionOptions = executionOptions.copy()
-
+    nb.executor = executor.copy()
     nb
   }
 
@@ -286,6 +325,19 @@ object Broker {
   def idFromExecutorId(executorId: String): Int = idFromTaskId(executorId)
 
   def isOptionOverridable(name: String): Boolean = !Set("broker.id", "port", "zookeeper.connect").contains(name)
+
+  case class CustomExecutor(var name: String = "default",
+                            var labels:List[mutable.Map[String, String]] = List[mutable.Map[String,String]](),
+                            var resources:List[String] = List[String]()){
+
+    //this method is used while reading from the json input and populating the poso
+    def this(d: Map[String, Any]){
+      this(d.getOrElse("name", "default").asInstanceOf[String],
+        d.getOrElse("labels", List[Map[String, String]]()).asInstanceOf[List[Map[String, String]]].map(lbl => mutable.Map[String, String]() ++= lbl),
+        d.getOrElse("resources", List[String]()).asInstanceOf[List[String]])
+    }
+  }
+
 
   class Stickiness(_period: Period = new Period("10m")) {
     var period: Period = _period
@@ -488,6 +540,8 @@ object Broker {
                      val roleMem: Long = 0,
                      val sharedPort: Long = -1,
                      val rolePort: Long = -1,
+//                     val sharedDisk: Double = 0,
+//                     val roleDisk: Double = 0,
                      val volume: String = null,
                      val volumeSize: Double = 0.0,
                      val volumePrincipal: String = null,
@@ -497,6 +551,8 @@ object Broker {
     def cpus: Double = sharedCpus + roleCpus
     val mem: Long = sharedMem + roleMem
     val port: Long = if (rolePort != -1) rolePort else sharedPort
+//    val disk: Double = if (Config.principal != null) roleDisk else sharedDisk
+//    val disk: Double = sharedDisk + roleDisk
 
     def toResources: util.List[Resource] = {
       def cpus(value: Double, role: String): Resource = {
@@ -525,6 +581,15 @@ object Broker {
           .setRole(role)
           .build()
       }
+
+//      def disk(value: Double, role: String): Resource = {
+//        Resource.newBuilder
+//          .setName("disk")
+//          .setType(Value.Type.SCALAR)
+//          .setScalar(Value.Scalar.newBuilder.setValue(value))
+//          .setRole(role)
+//          .build()
+//      }
 
       def volumeDisk(id: String, value: Double, role: String, principal: String, diskSource: Source): Resource = {
         // TODO: add support for changing container path
@@ -560,6 +625,9 @@ object Broker {
 
       if (sharedPort != -1) resources.add(port(sharedPort, "*"))
       if (rolePort != -1) resources.add(port(rolePort, role))
+
+//      if (sharedDisk > 0) resources.add(disk(sharedDisk, "*"))
+//      if (roleDisk > 0) resources.add(disk(roleDisk, role))
 
       if (volume != null) resources.add(volumeDisk(volume, volumeSize, role, volumePrincipal, diskSource))
       resources

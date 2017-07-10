@@ -21,8 +21,6 @@ import java.io._
 import java.net.{HttpURLConnection, URL, URLEncoder}
 import java.util
 import java.util.Properties
-
-//import com.sun.javaws.exceptions.InvalidArgumentException
 import joptsimple.{BuiltinHelpFormatter, OptionException, OptionParser, OptionSet}
 import ly.stealth.mesos.kafka._
 import net.elodina.mesos.util.Strings
@@ -123,8 +121,6 @@ trait CliUtils
     try {
       connection.setRequestMethod("POST")
       connection.setDoOutput(true)
-      println("CLI.scala : 124 \n", ClassTag(params.getClass))
-      println(params)
       params match {
         case _: util.Map[String, String] =>
           val qs: String = queryString(params.asInstanceOf[util.Map[String, String]])
@@ -145,8 +141,6 @@ trait CliUtils
               println(formData)
               connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
               connection.getOutputStream.write(formData.getBytes("utf-8"))
-//            case None =>
-//              throw new InvalidArgumentException(Array("None recieved.. error while parsing json object"))
           }
       }
 
@@ -169,15 +163,7 @@ trait CliUtils
   }
 
   def sendRequestObj[T](uri: String, params: Any)(implicit m: Manifest[T]): T = {
-    val response = params match {
-      case _: util.Map[String, String] => sendRequestString(uri, params)
-      case _: Option[Any] => sendRequestString(uri, params)
-      case _: Map[String, Any] => sendRequestString(uri, params)
-      case _ =>
-        println("Error: expected Option[Any] or (util.Map|Map)[String, (String|Any)] as inputs in the params")
-        null
-    }
-
+    val response = sendRequestString(uri, params)
     if (response == null) {
       throw new NullPointerException()
     }

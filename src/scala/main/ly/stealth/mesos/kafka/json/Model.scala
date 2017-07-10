@@ -30,6 +30,8 @@ import ly.stealth.mesos.kafka.Broker._
 import ly.stealth.mesos.kafka.Util.BindAddress
 import net.elodina.mesos.util.{Constraint, Period, Range, Strings}
 import scala.collection.JavaConversions._
+import scala.collection.mutable
+import scala.util.parsing.json.{JSONArray, JSONObject}
 
 object IgnoreMetricsAttribute {}
 
@@ -47,11 +49,11 @@ class BindAddressDeserializer extends StdDeserializer[BindAddress](classOf[BindA
 
 case class BrokerModel(
                         id: String, active: Boolean, cpus: Double, mem: Long, heap: Long,
-                        port: Range, volume: String, bindAddress: BindAddress, syslog: Boolean, executor: Map[String, Any],
+                        port: Range, volume: String, bindAddress: BindAddress, syslog: Boolean, executor: CustomExecutor,
                         constraints: String,
                         options: String, log4jOptions: String, jvmOptions: String,
                         stickiness: Stickiness, failover: Failover, task: Task,
-                        metrics: Metrics, needsRestart: Boolean, executionOptions: ExecutionOptions
+                        metrics: Metrics, needsRestart: Boolean, executionOptions: ExecutionOptions//, role: String
                       )
 
 class BrokerSerializer extends StdSerializer[Broker](classOf[Broker]) {
@@ -67,7 +69,7 @@ class BrokerSerializer extends StdSerializer[Broker](classOf[Broker]) {
       b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.volume, b.bindAddress, b.syslog, b.executor,
       Strings.formatMap(b.constraints), Strings.formatMap(b.options), Strings.formatMap(b.log4jOptions),
       b.executionOptions.jvmOptions, b.stickiness, b.failover, b.task, metrics, b.needsRestart,
-      b.executionOptions
+      b.executionOptions//, b.role
     ), gen)
   }
 }
@@ -99,7 +101,7 @@ class BrokerDeserializer extends StdDeserializer[Broker](classOf[Broker]) {
       b.executionOptions = model.executionOptions
     if (model.jvmOptions != null)
       b.executionOptions = b.executionOptions.copy(jvmOptions = model.jvmOptions)
-
+//    b.role = model.role
     b
   }
 }
@@ -223,6 +225,21 @@ class StickinessDeserializer extends StdDeserializer[Stickiness](classOf[Stickin
   }
 }
 
+case class CustomExecutorModel(name: String, resources:List[String], labels:List[mutable.Map[String, String]])
+
+class CustomExecutorSerializer extends StdSerializer[CustomExecutor](classOf[CustomExecutor]) {
+  override def serialize(s: CustomExecutor, gen: JsonGenerator, provider: SerializerProvider): Unit = {
+    provider.defaultSerializeValue(CustomExecutorModel(s.name, s.resources, s.labels), gen)
+  }
+}
+
+class CustomExecutorDeserializer extends StdDeserializer[CustomExecutor](classOf[CustomExecutor]) {
+  override def deserialize(p: JsonParser, ctxt: DeserializationContext): CustomExecutor = {
+    val model = p.readValueAs(classOf[CustomExecutorModel])
+    CustomExecutor(model.name, model.labels, model.resources)
+  }
+}
+
 case class TaskModel(id: String, slaveId: String, executorId: String, hostname: String,
                      endpoint: Endpoint, attributes: Map[String, String], state: String)
 class TaskSerializer extends StdSerializer[Task](classOf[Task]) {
@@ -315,6 +332,9 @@ object KafkaObjectModel extends SimpleModule {
 
     this.addSerializer(classOf[Task], new TaskSerializer())
     this.addDeserializer(classOf[Task], new TaskDeserializer())
+
+    this.addSerializer(classOf[CustomExecutor], new CustomExecutorSerializer())
+    this.addDeserializer(classOf[CustomExecutor], new CustomExecutorDeserializer())
 
     super.setupModule(context)
   }
