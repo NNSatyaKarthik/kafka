@@ -99,8 +99,8 @@ object readJson {
       val exec:Map[String, Any] = executor("executor").asInstanceOf[Map[String, Any]]
       dataMap += ("name" -> exec("name").asInstanceOf[String])
       dataMap += ("command" -> getCommandInfo(exec("command")))
-      dataMap += ("resources" -> getResourceInfo(exec("resources")))
-      dataMap += ("labels" -> getLabels(exec("labels")))
+      if(exec.contains("resources")) dataMap += ("resources" -> getResourceInfo(exec("resources")))
+      if(exec.contains("labels")) dataMap += ("labels" -> getLabels(exec("labels")))
       executorMap += (dataMap("name").asInstanceOf[String] -> dataMap)
     }
   }
@@ -110,8 +110,8 @@ object readJson {
       val map = executorMap(executor).asInstanceOf[Map[String,Any]]
       println("name: ", map("name"))
       println("command: ", map("command"))
-      println("resources: ", map("resources"))
-      println("labels: ", map("labels"))
+      println("resources: ", map.getOrElse("resources", "NOTFOUND"))
+      println("labels: ", map.getOrElse("labels", "NOTFOUND"))
       println("-------------------------------------------------------")
     }
   }
