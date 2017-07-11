@@ -16,12 +16,11 @@
   */
 package ly.stealth.mesos.kafka.scheduler.mesos
 
-import com.google.protobuf.{ByteString, Descriptors}
-import ly.stealth.mesos.kafka.Broker.{Container, ContainerType, MountMode, Reservation}
+import com.google.protobuf.ByteString
+import ly.stealth.mesos.kafka.Broker.{Container, ContainerType, MountMode}
 import ly.stealth.mesos.kafka._
 import ly.stealth.mesos.kafka.executor.LaunchConfig
 import ly.stealth.mesos.kafka.json.JsonUtil
-import ly.stealth.mesos.kafka.readJson.executorMap
 import ly.stealth.mesos.kafka.scheduler.KafkaDistributionComponent
 import net.elodina.mesos.util.Version
 import org.apache.log4j.Logger
@@ -29,8 +28,8 @@ import org.apache.mesos.Protos.ContainerInfo.{DockerInfo, MesosInfo}
 import org.apache.mesos.Protos.Environment.Variable
 import org.apache.mesos.Protos._
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.collection.JavaConversions.{collectionAsScalaIterable, _}
 
 trait MesosTaskFactoryComponent {
   val taskFactory: MesosTaskFactory
@@ -102,7 +101,7 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         val uris = configExec("command").asInstanceOf[CommandInfo.Builder].getUrisList
         val commandBuilder = CommandInfo.newBuilder().addAllUris(uris)
         for(resource <- customExecutor.resources){
-          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(resource.asInstanceOf[String]).setExtract(true).setCache(false).build())
+          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(resource.asInstanceOf[String]).setExtract(true).setExecutable(false).setCache(false).build())
         }
         val executor = ExecutorInfo.newBuilder()
           .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
