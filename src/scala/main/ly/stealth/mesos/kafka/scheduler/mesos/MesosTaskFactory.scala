@@ -98,11 +98,11 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         val customExecutor = broker.executor
         val name = customExecutor.name
         val configExec:Map[String, Any] = readJson.executorMap(name).asInstanceOf[Map[String, Any]]
-        val uris = configExec("command").asInstanceOf[CommandInfo.Builder].getUrisList
-        val commandBuilder = CommandInfo.newBuilder().addAllUris(uris)
-        for(resource <- customExecutor.resources){
-          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(resource.asInstanceOf[String]).setExtract(true).setExecutable(false).setCache(false).build())
-        }
+//        val uris = configExec("command").asInstanceOf[CommandInfo.Builder].getUrisList
+        val commandBuilder = configExec("command").asInstanceOf[CommandInfo.Builder]
+        (customExecutor.resources.toSet -- commandBuilder.getUrisList.map(t => t.getValue).toSet).map(t => {
+          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(t).setExtract(true).setExecutable(false).setCache(false).build())
+        })
         val executor = ExecutorInfo.newBuilder()
           .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
           .setCommand(commandBuilder.build())
