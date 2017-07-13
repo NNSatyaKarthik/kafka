@@ -81,6 +81,12 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
       var dmap: Map[String, Any] = Util.getDataMap(data)
       println("recieving data response from json argument..", data)
 
+      var disk = if (dmap.contains("disk")) {
+        new JDouble(dmap("disk").asInstanceOf[String])
+      } else {
+        null
+      }
+
       var cpus = if (dmap.contains("cpus")) {
         new JDouble(dmap("cpus").asInstanceOf[String])
       } else {
@@ -179,7 +185,7 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
       }
 
       addBroker(operation, dmap.getOrElse("broker", null).asInstanceOf[String],
-        cpus, mem, heap, port, dmap.getOrElse("volume", null).asInstanceOf[String], bindAddress, syslog,
+        cpus, mem, heap, disk, port, dmap.getOrElse("volume", null).asInstanceOf[String], bindAddress, syslog,
         stickinessPeriod,
         executorMap.name,
         executorResources,
@@ -200,6 +206,7 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
                 @BothParam("cpus") cpus: JDouble,
                 @BothParam("mem") mem: JLong,
                 @BothParam("heap") heap: JLong,
+                @BothParam("disk") disk: JDouble,
                 @BothParam("port") port: Range,
                 @BothParam("volume") volume: String,
                 @BothParam("bindAddress") bindAddress: BindAddress,
@@ -266,6 +273,7 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         if (cpus != null) broker.cpus = cpus
         if (mem != null) broker.mem = mem
         if (heap != null) broker.heap = heap
+        if (disk != null) broker.disk = disk
         if (port != null) broker.port = port
         if (volume != null) broker.volume = volume
         if (bindAddress != null) broker.bindAddress = bindAddress

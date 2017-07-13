@@ -18,6 +18,7 @@ package ly.stealth.mesos.kafka.json
 
 
 import java.util.Date
+
 import com.fasterxml.jackson.core.{JsonGenerator, JsonParser}
 import com.fasterxml.jackson.databind.Module.SetupContext
 import com.fasterxml.jackson.databind._
@@ -25,13 +26,13 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.ser.std.StdSerializer
-import ly.stealth.mesos.kafka.{Broker, Cluster, Topic}
 import ly.stealth.mesos.kafka.Broker._
 import ly.stealth.mesos.kafka.Util.BindAddress
+import ly.stealth.mesos.kafka.{Broker, Cluster, Topic}
 import net.elodina.mesos.util.{Constraint, Period, Range, Strings}
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.util.parsing.json.{JSONArray, JSONObject}
 
 object IgnoreMetricsAttribute {}
 
@@ -49,7 +50,7 @@ class BindAddressDeserializer extends StdDeserializer[BindAddress](classOf[BindA
 
 case class BrokerModel(
                         id: String, active: Boolean, cpus: Double, mem: Long, heap: Long,
-                        port: Range, volume: String, bindAddress: BindAddress, syslog: Boolean, executor: CustomExecutor,
+                        port: Range, disk: Double, volume: String, bindAddress: BindAddress, syslog: Boolean, executor: CustomExecutor,
                         constraints: String,
                         options: String, log4jOptions: String, jvmOptions: String,
                         stickiness: Stickiness, failover: Failover, task: Task,
@@ -66,7 +67,7 @@ class BrokerSerializer extends StdSerializer[Broker](classOf[Broker]) {
       }
 
     provider.defaultSerializeValue(BrokerModel(
-      b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.volume, b.bindAddress, b.syslog, b.executor,
+      b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.disk, b.volume, b.bindAddress, b.syslog, b.executor,
       Strings.formatMap(b.constraints), Strings.formatMap(b.options), Strings.formatMap(b.log4jOptions),
       b.executionOptions.jvmOptions, b.stickiness, b.failover, b.task, metrics, b.needsRestart,
       b.executionOptions//, b.role
