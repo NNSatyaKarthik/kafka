@@ -50,7 +50,7 @@ class HttpServerTest extends KafkaMesosTestCase {
     startZkServer()
   }
 
-//  @After
+  @After
   override def after {
     stopHttpServer()
     super.after
@@ -298,7 +298,7 @@ class HttpServerTest extends KafkaMesosTestCase {
     // needsRestart flag
     assertFalse(broker.needsRestart)
     // needsRestart is false despite update when broker stopped
-    resp = sendRequestObj[BrokerStatusResponse]("/broker/update", parseMap("broker=0,mem=2048"))
+    resp = sendRequestObj[BrokerStatusResponse]("/broker/update", parseMap("broker=0,mem=2048,disk=2048"))
     assertFalse(broker.needsRestart)
 
     // when broker starting
@@ -307,7 +307,7 @@ class HttpServerTest extends KafkaMesosTestCase {
     assertTrue(broker.needsRestart)
 
     // modification is made before offer thus when it arrives needsRestart reset to false
-    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave0", "cpus:2.0;mem:8192;ports:9042..65000")))
+    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave0", "cpus:2.0;mem:8192;disk:2048;ports:9042..65000")))
     assertTrue(broker.waitFor(Broker.State.PENDING, new Period("1s"), 1))
     assertFalse(broker.needsRestart)
 

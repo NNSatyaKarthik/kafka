@@ -16,25 +16,25 @@
  */
 package ly.stealth.mesos.kafka
 
-import java.io.{File, FileWriter}
-import org.I0Itec.zkclient.{IDefaultNameSpace, ZkClient, ZkServer}
-import org.apache.log4j.{Appender, BasicConfigurator, ConsoleAppender, Level, Logger, PatternLayout}
-import ly.stealth.mesos.kafka.Cluster.FsStorage
-import net.elodina.mesos.util.{IO, Net, Period, Version}
-import org.junit.{After, Before, Ignore}
-import scala.concurrent.duration.Duration
-import scala.collection.JavaConversions._
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util
+import java.io.File
 import java.util.Date
+import java.util.concurrent.atomic.AtomicBoolean
+import ly.stealth.mesos.kafka.Cluster.FsStorage
 import ly.stealth.mesos.kafka.executor.{BrokerServer, Executor, KafkaServer, LaunchConfig}
 import ly.stealth.mesos.kafka.scheduler._
-import net.elodina.mesos.test.TestSchedulerDriver
+import net.elodina.mesos.test.{TestSchedulerDriver, MesosTestCase}
+import net.elodina.mesos.util.{IO, Net, Period, Version}
+import org.I0Itec.zkclient.{IDefaultNameSpace, ZkClient, ZkServer}
+import org.apache.log4j._
 import org.apache.mesos.Protos.{Status, TaskState}
 import org.junit.Assert._
+import org.junit.{After, Before, Ignore}
+
+import scala.collection.JavaConversions._
+import scala.concurrent.duration.Duration
 
 @Ignore
-class KafkaMesosTestCase extends net.elodina.mesos.test.MesosTestCase {
+class KafkaMesosTestCase extends MesosTestCase {
   var zkDir: File = null
   var zkServer: ZkServer = null
 
@@ -75,7 +75,7 @@ class KafkaMesosTestCase extends net.elodina.mesos.test.MesosTestCase {
   var registry: Registry = _
 
   def started(broker: Broker) {
-    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave" + broker.id, "cpus:2.0;mem:2048;ports:9042..65000")))
+    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave" + broker.id, "cpus:2.0;disk:1024;mem:2048;ports:9042..65000")))
     broker.waitFor(Broker.State.PENDING, new Period("1s"), 1)
     registry.scheduler.statusUpdate(schedulerDriver, taskStatus(broker.task.id, TaskState.TASK_STARTING, "slave" + broker.id + ":9042"))
     registry.scheduler.statusUpdate(schedulerDriver, taskStatus(broker.task.id, TaskState.TASK_RUNNING, "slave" + broker.id + ":9042"))

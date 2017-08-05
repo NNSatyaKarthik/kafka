@@ -42,6 +42,7 @@ class BrokerTest extends KafkaMesosTestCase {
     broker = new Broker(0)
     broker.cpus = 0
     broker.mem = 0
+    broker.disk = 0
   }
 
   @Test
@@ -77,7 +78,7 @@ class BrokerTest extends KafkaMesosTestCase {
   def matches {
     // cpus
     broker.cpus = 0.5
-    var theOffer = offer("cpus:0.2; cpus(role):0.3; ports:1000")
+    var theOffer = offer("cpus:0.2; cpus(role):0.3; ports:1000; disk:1000")
     BrokerTest.assertAccept(broker.matches(theOffer))
 
     theOffer = offer("cpus:0.2; cpus(role):0.2")

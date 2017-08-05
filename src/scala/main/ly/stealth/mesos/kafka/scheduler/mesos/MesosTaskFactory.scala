@@ -106,7 +106,7 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         val executor = ExecutorInfo.newBuilder()
           .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
           .setCommand(commandBuilder.build())
-          .setName("broker"+configExec("name")+"-" + broker.id)
+          .setName("broker-"+configExec("name")+"-" + broker.id)
           .addAllResources(configExec("resources").asInstanceOf[List[Resource]])
         //println("executor.build().toString:: ",executor.build().toString)
         executor.build()
@@ -167,7 +167,6 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
             }
             taskBuilder.setLabels(labelsBuilder.build())
           }
-          //TODO add here additional for loop to read labels from the config.json
           //TODO also make sure if multiple labels from config and input match.. take precedence over input params over config
 //         as in dont' update the values if exists.. just ignore as we are first adding the data form the input
 //          later reading hte config at the end before executing.
