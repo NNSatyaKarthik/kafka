@@ -48,7 +48,22 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
     private[this] val logger = Logger.getLogger("MesosTaskFactoryImpl")
 
     private[kafka] def newExecutor(broker: Broker): ExecutorInfo = {
-      if (broker.executor.name == "default") {
+      if(broker.customExecutor != null){
+        //        readJson.printExecutors()
+        val configExec:Map[String, Any] = readJson.executorMap(broker.customExecutor.name).asInstanceOf[Map[String, Any]]
+        val commandBuilder = configExec("command").asInstanceOf[CommandInfo.Builder] //TODO add error check
+        (broker.customExecutor.resources.toSet -- commandBuilder.getUrisList.map(t => t.getValue).toSet).map(t => {
+          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(t).setExtract(true).setExecutable(false).setCache(false).build())
+        })
+        val executor = ExecutorInfo.newBuilder()
+          .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
+          .setCommand(commandBuilder.build())
+          .setName("broker-"+configExec("name")+"-" + broker.id)
+          .addAllResources(configExec("resources").asInstanceOf[List[Resource]])
+        //println("executor.build().toString:: ",executor.build().toString)
+        executor.build()
+
+      } else {
         val distInfo = kafkaDistribution.distInfo
         var cmd = ""
         if (broker.executionOptions.container.isDefined) {
@@ -93,24 +108,6 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
           executor.setContainer(createContainerInfo(c, broker.id))
         }
         executor.build()
-      } else {
-//        readJson.printExecutors()
-        val customExecutor = broker.executor
-        val name = customExecutor.name
-        val configExec:Map[String, Any] = readJson.executorMap(name).asInstanceOf[Map[String, Any]]
-//        val uris = configExec("command").asInstanceOf[CommandInfo.Builder].getUrisList
-        val commandBuilder = configExec("command").asInstanceOf[CommandInfo.Builder]
-        (customExecutor.resources.toSet -- commandBuilder.getUrisList.map(t => t.getValue).toSet).map(t => {
-          commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(t).setExtract(true).setExecutable(false).setCache(false).build())
-        })
-        val executor = ExecutorInfo.newBuilder()
-          .setExecutorId(ExecutorID.newBuilder.setValue(Broker.nextExecutorId(broker)))
-          .setCommand(commandBuilder.build())
-          .setName("broker-"+configExec("name")+"-" + broker.id)
-          .addAllResources(configExec("resources").asInstanceOf[List[Resource]])
-        //println("executor.build().toString:: ",executor.build().toString)
-        executor.build()
-
       }
     }
 
@@ -152,7 +149,7 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
 
     def newTask(broker: Broker, offer: Offer, reservation: Broker.Reservation): TaskInfo = {
       def populate(taskBuilder: TaskInfo.Builder, broker: Broker): TaskInfo.Builder = {
-        val customExecutor = broker.executor // get the broker executor
+        val customExecutor = broker.customExecutor // get the broker executor
 
         if (customExecutor.name != "default") {
           val configExec = readJson.executorMap(customExecutor.name).asInstanceOf[Map[String,Any]]

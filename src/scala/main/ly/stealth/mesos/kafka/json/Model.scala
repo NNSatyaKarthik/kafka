@@ -67,7 +67,7 @@ class BrokerSerializer extends StdSerializer[Broker](classOf[Broker]) {
       }
 
     provider.defaultSerializeValue(BrokerModel(
-      b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.disk, b.volume, b.bindAddress, b.syslog, b.executor,
+      b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.disk, b.volume, b.bindAddress, b.syslog, b.customExecutor,
       Strings.formatMap(b.constraints), Strings.formatMap(b.options), Strings.formatMap(b.log4jOptions),
       b.executionOptions.jvmOptions, b.stickiness, b.failover, b.task, metrics, b.needsRestart,
       b.executionOptions//, b.role
@@ -87,7 +87,7 @@ class BrokerDeserializer extends StdDeserializer[Broker](classOf[Broker]) {
     b.volume = model.volume
     b.bindAddress = model.bindAddress
     b.syslog = model.syslog
-    b.executor = model.executor
+    b.customExecutor = model.executor
     b.constraints = Strings.parseMap(model.constraints).mapValues(new Constraint(_)).toMap
     b.options = Strings.parseMap(model.options).toMap
     b.log4jOptions = Strings.parseMap(model.log4jOptions).toMap

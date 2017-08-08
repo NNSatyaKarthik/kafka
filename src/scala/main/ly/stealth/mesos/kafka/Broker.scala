@@ -44,7 +44,7 @@ class Broker(val id: Int = 0) {
   var volume: String = null
   var bindAddress: BindAddress = null
   var syslog: Boolean = false
-  var executor: CustomExecutor = CustomExecutor()
+  var customExecutor: CustomExecutor = null
   var constraints: Map[String, Constraint] = Map()
   var options: Map[String, String] = Map()
   var log4jOptions: Map[String, String] = Map()
@@ -302,7 +302,7 @@ class Broker(val id: Int = 0) {
     nb.failover.maxDelay = failover.maxDelay
     nb.failover.maxTries = failover.maxTries
     nb.executionOptions = executionOptions.copy()
-    nb.executor = executor.copy()
+    nb.customExecutor = customExecutor.copy()
     nb
   }
 

@@ -281,22 +281,20 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         if (stickinessPeriod != null) broker.stickiness.period = stickinessPeriod
         // only taking care of input.. config.json doesn't come into play yet
         if (executorName != "default") {
-          broker.executor.name = executorName
-          broker.executor.resources= executorResources.split(",").toList
-          broker.executor.labels = List()
+          broker.customExecutor = CustomExecutor(executorName, resources = executorResources.split(",").toList, labels = List())
           //parses the passed in labels and sets the broker.executor.labels to that
           // last value of the passed in labesl with same key will be given preference.
           var isPresent = false
           for(lbl <- executorLabels) {
             isPresent = false
-            for(exec_lbl <- broker.executor.labels){
+            for(exec_lbl <- broker.customExecutor.labels){
               if(lbl._1 == exec_lbl("key")){
                 isPresent = true
                 exec_lbl.update("value", lbl._2)
               }
             }
             if(!isPresent){
-              broker.executor.labels ::= mutable.Map("key" -> lbl._1, "value" -> lbl._2)
+              broker.customExecutor.labels ::= mutable.Map("key" -> lbl._1, "value" -> lbl._2)
             }
           }
         }
