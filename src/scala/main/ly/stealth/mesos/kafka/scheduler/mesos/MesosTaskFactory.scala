@@ -48,10 +48,10 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
     private[this] val logger = Logger.getLogger("MesosTaskFactoryImpl")
 
     private[kafka] def newExecutor(broker: Broker): ExecutorInfo = {
-      if(broker.customExecutor != null){
+      if(broker.customExecutor != null && readJson.executorMap.contains(broker.customExecutor.name)){
         //        readJson.printExecutors()
         val configExec:Map[String, Any] = readJson.executorMap(broker.customExecutor.name).asInstanceOf[Map[String, Any]]
-        val commandBuilder = configExec("command").asInstanceOf[CommandInfo.Builder] //TODO add error check
+        val commandBuilder = configExec("command").asInstanceOf[CommandInfo.Builder]
         (broker.customExecutor.resources.toSet -- commandBuilder.getUrisList.map(t => t.getValue).toSet).map(t => {
           commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(t).setExtract(true).setExecutable(false).setCache(false).build())
         })
@@ -64,6 +64,10 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
         executor.build()
 
       } else {
+        if(broker.customExecutor != null) {
+          logger.error("Broker's Custom executor name is not null & not present in the config (broker-executors.json). " +
+            "Please check for correct executor. Custom Executor Name:: "+broker.customExecutor.name + ". Defaulting to Command Executor")
+        }
         val distInfo = kafkaDistribution.distInfo
         var cmd = ""
         if (broker.executionOptions.container.isDefined) {
@@ -151,7 +155,7 @@ trait MesosTaskFactoryComponentImpl extends MesosTaskFactoryComponent {
       def populate(taskBuilder: TaskInfo.Builder, broker: Broker): TaskInfo.Builder = {
         val customExecutor = broker.customExecutor // get the broker executor
 
-        if (customExecutor.name != "default") {
+        if (customExecutor != null && readJson.executorMap.contains(customExecutor.name)) {
           val configExec = readJson.executorMap(customExecutor.name).asInstanceOf[Map[String,Any]]
           if(customExecutor.labels.nonEmpty){ // only iterates over the inputs that are passed in http json
             val labelsBuilder = if(configExec.contains("labels")) {
