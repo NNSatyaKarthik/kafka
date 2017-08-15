@@ -75,7 +75,7 @@ class KafkaMesosTestCase extends net.elodina.mesos.test.MesosTestCase {
   var registry: Registry = _
 
   def started(broker: Broker) {
-    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave" + broker.id, "cpus:2.0;mem:2048;ports:9042..65000")))
+    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave" + broker.id, "cpus:2.0;disk:1024;mem:2048;ports:9042..65000")))
     broker.waitFor(Broker.State.PENDING, new Period("1s"), 1)
     registry.scheduler.statusUpdate(schedulerDriver, taskStatus(broker.task.id, TaskState.TASK_STARTING, "slave" + broker.id + ":9042"))
     registry.scheduler.statusUpdate(schedulerDriver, taskStatus(broker.task.id, TaskState.TASK_RUNNING, "slave" + broker.id + ":9042"))

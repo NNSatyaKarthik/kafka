@@ -42,9 +42,10 @@ class SchedulerTest extends KafkaMesosTestCase {
     broker.cpus = 0.5
     broker.mem = 256
     broker.heap = 512
+    broker.disk = 1024
     broker.executionOptions = ExecutionOptions(jvmOptions = "-Xms64m")
 
-    val offer = this.offer("id", "fw-id", "slave", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000", "")
+    val offer = this.offer("id", "fw-id", "slave", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; disk:${broker.disk}; ports:1000", "")
     val reservation = broker.getReservation(offer)
 
     val task = registry.taskFactory.newTask(broker, offer, reservation)
@@ -97,6 +98,7 @@ class SchedulerTest extends KafkaMesosTestCase {
     broker.cpus = 0.5
     broker.mem = 256
     broker.heap = 512
+    broker.disk = 1024
     broker.executionOptions = ExecutionOptions(
       container = Some(Container(
         ctype = ContainerType.Docker,
@@ -106,7 +108,7 @@ class SchedulerTest extends KafkaMesosTestCase {
       jvmOptions = "-Xms64m"
     )
 
-    val offer = this.offer("id", "fw-id", "slave", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000", "")
+    val offer = this.offer("id", "fw-id", "slave", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; disk:${broker.disk}; ports:1000", "")
     val reservation = broker.getReservation(offer)
 
     val task = registry.taskFactory.newTask(broker, offer, reservation)
@@ -125,6 +127,7 @@ class SchedulerTest extends KafkaMesosTestCase {
     broker.cpus = 0.5
     broker.mem = 256
     broker.heap = 512
+    broker.disk = 1024
     broker.executionOptions = ExecutionOptions(
       container = Some(Container(
         ctype = ContainerType.Mesos,
@@ -134,7 +137,7 @@ class SchedulerTest extends KafkaMesosTestCase {
       jvmOptions = "-Xms64m"
     )
 
-    val offer = this.offer("id", "fw-id", "slave", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000", "")
+    val offer = this.offer("id", "fw-id", "slave", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; disk:${broker.disk}; ports:1000", "")
     val reservation = broker.getReservation(offer)
 
     val task = registry.taskFactory.newTask(broker, offer, reservation)
@@ -148,7 +151,7 @@ class SchedulerTest extends KafkaMesosTestCase {
   @Test
   def syncBrokers {
     val broker = registry.cluster.addBroker(new Broker())
-    val offer = this.offer(s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000")
+    val offer = this.offer(s"cpus:${broker.cpus}; mem:${broker.mem}; disk:${broker.disk}; ports:1000")
 
     // broker !active
     assertFalse(registry.scheduler.tryLaunchBrokers(Seq(offer)))
@@ -184,7 +187,7 @@ class SchedulerTest extends KafkaMesosTestCase {
       Right(Seq(OfferResult.neverMatch(theOffer, broker, s"mem < ${broker.mem}"))),
       registry.offerManager.tryAcceptOffer(theOffer, Seq(broker)))
 
-    theOffer = offer(s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000")
+    theOffer = offer(s"cpus:${broker.cpus}; mem:${broker.mem}; disk:${broker.disk}; ports:1000")
     assertTrue(registry.scheduler.tryLaunchBrokers(Seq(theOffer)))
     assertEquals(1, schedulerDriver.launchedTasks.size())
 
@@ -200,8 +203,8 @@ class SchedulerTest extends KafkaMesosTestCase {
     broker.active = true
     broker.task = null
 
-    val o1 = offer(s"cpus:1; mem: ${broker.mem}; ports:1000")
-    val o2 = offer(s"cpus:1; mem: ${broker.mem}; ports:1000")
+    val o1 = offer(s"cpus:1; mem: ${broker.mem}; disk:${broker.disk}; ports:1000")
+    val o2 = offer(s"cpus:1; mem: ${broker.mem}; disk:${broker.disk}; ports:1000")
     assertTrue(registry.scheduler.tryLaunchBrokers(Seq(o1, o2)))
     assertEquals(1, schedulerDriver.acceptedOffers.size())
     assertEquals(1, schedulerDriver.declinedOffers.size())
@@ -216,8 +219,8 @@ class SchedulerTest extends KafkaMesosTestCase {
     b1.active = true
     b2.active = true
 
-    val o1 = offer("host1", s"cpus:1; mem: ${b1.mem}; ports:1000")
-    val o2 = offer("host2", s"cpus:1; mem: ${b2.mem}; ports:1000")
+    val o1 = offer("host1", s"cpus:1; mem: ${b1.mem}; disk:${b1.disk}; ports:1000")
+    val o2 = offer("host2", s"cpus:1; mem: ${b2.mem}; disk:${b2.disk}; ports:1000")
     assertTrue(registry.scheduler.tryLaunchBrokers(Seq(o1, o2)))
     assertEquals(2, schedulerDriver.acceptedOffers.distinct.size)
     assertEquals(2, schedulerDriver.launchedTasks.map(_.getTaskId.getValue).size())
@@ -306,7 +309,7 @@ class SchedulerTest extends KafkaMesosTestCase {
   @Test
   def launchTask {
     val broker = registry.cluster.addBroker(new Broker(100))
-    val offer = this.offer("id", "fw-id", "slave-id", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000", "a=1,b=2")
+    val offer = this.offer("id", "fw-id", "slave-id", "host", s"cpus:${broker.cpus}; mem:${broker.mem}; disk:${broker.disk}; ports:1000", "a=1,b=2")
     broker.needsRestart = true
     broker.active = true
     assertTrue(registry.scheduler.tryLaunchBrokers(Seq(offer)))

@@ -52,7 +52,7 @@ class HttpServerTest extends KafkaMesosTestCase {
 
   @Test
   def broker_add {
-    val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add", parseMap("broker=0,cpus=0.1,mem=128"))
+    val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add", parseMap("broker=0,cpus=0.1,mem=128,disk=2048"))
     assertEquals(1, brokers.brokers.size)
 
     assertEquals(1, registry.cluster.getBrokers.size())
@@ -60,7 +60,8 @@ class HttpServerTest extends KafkaMesosTestCase {
     assertEquals(0, broker.id)
     assertEquals(0.1, broker.cpus, 0.001)
     assertEquals(128, broker.mem)
-
+    assertEquals(2048, broker.disk)
+    
     BrokerTest.assertBrokerEquals(broker, brokers.brokers.head)
   }
 
@@ -177,13 +178,17 @@ class HttpServerTest extends KafkaMesosTestCase {
     resp = sendRequestObj[BrokerStatusResponse]("/broker/update", parseMap("broker=0,mem=2048"))
     assertFalse(broker.needsRestart)
 
+    // check for disk update
+    resp = sendRequestObj[BrokerStatusResponse]("/broker/update", parseMap("broker=0,disk=2048"))
+    assertFalse(broker.needsRestart)
+
     // when broker starting
     sendRequest("/broker/start", parseMap(s"broker=0,timeout=0s"))
     sendRequest("/broker/update", parseMap("broker=0,mem=4096"))
     assertTrue(broker.needsRestart)
 
     // modification is made before offer thus when it arrives needsRestart reset to false
-    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave0", "cpus:2.0;mem:8192;ports:9042..65000")))
+    registry.scheduler.resourceOffers(schedulerDriver, Seq(offer("slave0", "cpus:2.0;mem:8192;disk:2048;ports:9042..65000")))
     assertTrue(broker.waitFor(Broker.State.PENDING, new Period("1s"), 1))
     assertFalse(broker.needsRestart)
 

@@ -82,6 +82,7 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
       @BothParam("cpus") cpus: JDouble,
       @BothParam("mem") mem: JLong,
       @BothParam("heap") heap: JLong,
+      @BothParam("disk") disk: JLong,
       @BothParam("port") port: Range,
       @BothParam("volume") volume: String,
       @BothParam("bindAddress") bindAddress: BindAddress,
@@ -144,6 +145,7 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
         if (cpus != null) broker.cpus = cpus
         if (mem != null) broker.mem = mem
         if (heap != null) broker.heap = heap
+        if (disk != null) broker.disk = disk
         if (port != null) broker.port = port
         if (volume != null) broker.volume = volume
         if (bindAddress != null) broker.bindAddress = bindAddress
