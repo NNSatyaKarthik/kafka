@@ -62,7 +62,7 @@ class SchedulerTest extends KafkaMesosTestCase {
     assertTrue(cmd, cmd.contains(Executor.getClass.getName.replace("$", "")))
 
     // resources
-    assertEquals(resources(s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000"), task.getResourcesList)
+    assertEquals(resources(s"cpus:${broker.cpus}; mem:${broker.mem}; ports:1000; disk:${broker.disk}"), task.getResourcesList)
 
     // data
     val launchConfig = JsonUtil.fromJson[LaunchConfig](task.getData.toByteArray)
