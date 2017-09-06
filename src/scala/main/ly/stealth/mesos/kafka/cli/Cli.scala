@@ -26,6 +26,8 @@ import ly.stealth.mesos.kafka._
 import net.elodina.mesos.util.Strings
 import scala.collection.JavaConversions._
 import scala.io.Source
+import scala.reflect.ClassTag
+import scala.util.parsing.json.JSONObject
 
 trait CliHandler {
   def handle(cmd: String, _args: Array[String], help: Boolean = false): Unit
@@ -99,8 +101,9 @@ trait CliUtils
     throw new Error("Undefined api. Provide either cli option or config default value")
   }
 
-  private[kafka] def sendRequestString(uri: String, params: util.Map[String, String]): String = {
-    def queryString(params: util.Map[String, String]): String = {
+//  private[kafka] def sendRequestString(uri: String, params: util.Map[String, String]): String = {
+  private[kafka] def sendRequestString(uri: String, params: Any): String = {
+    def queryString(params: util.Map[String,String]): String = {
       var s = ""
       for ((name, value) <- params) {
         if (!s.isEmpty) s += "&"
@@ -110,7 +113,6 @@ trait CliUtils
       s
     }
 
-    val qs: String = queryString(params)
     val url: String = api + (if (api.endsWith("/")) "" else "/") + "api" + uri
 
     val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
@@ -118,11 +120,28 @@ trait CliUtils
     try {
       connection.setRequestMethod("POST")
       connection.setDoOutput(true)
-
-      val data = qs.getBytes("utf-8")
-      connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
-      connection.setRequestProperty("Content-Length", "" + data.length)
-      connection.getOutputStream.write(data)
+      params match {
+        case _: util.Map[String, String] =>
+          val qs: String = queryString(params.asInstanceOf[util.Map[String, String]])
+          val data = qs.getBytes("utf-8")
+          connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+          connection.setRequestProperty("Content-Length", "" + data.length)
+          connection.getOutputStream.write(data)
+        case _: Map[String, Any] =>
+          val qs: String = queryString(mapAsJavaMap(params.asInstanceOf[Map[String,Any]]).asInstanceOf[util.Map[String, String]])
+          val data = qs.getBytes("utf-8")
+          connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+          connection.setRequestProperty("Content-Length", "" + data.length)
+          connection.getOutputStream.write(data)
+        case _: Option[Any] =>
+          params match {
+            case Some(p) =>
+              val formData = JSONObject(p.asInstanceOf[Map[String, Any]]).toString()
+              println(formData)
+              connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+              connection.getOutputStream.write(formData.getBytes("utf-8"))
+          }
+      }
 
       try { response = Source.fromInputStream(connection.getInputStream).getLines().mkString}
       catch {
@@ -142,7 +161,7 @@ trait CliUtils
     sendRequestString(uri, params)
   }
 
-  def sendRequestObj[T](uri: String, params: util.Map[String, String])(implicit m: Manifest[T]): T = {
+  def sendRequestObj[T](uri: String, params: Any)(implicit m: Manifest[T]): T = {
     val response = sendRequestString(uri, params)
     if (response == null) {
       throw new NullPointerException()

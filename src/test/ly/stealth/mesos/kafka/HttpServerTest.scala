@@ -32,6 +32,8 @@ import ly.stealth.mesos.kafka.json.JsonUtil
 import ly.stealth.mesos.kafka.scheduler.{AdminUtilsWrapper, Quota, Quotas}
 import scala.collection.JavaConversions._
 import scala.io.Source
+import scala.language.postfixOps
+import scala.util.parsing.json.{JSON, JSONObject}
 
 class HttpServerTest extends KafkaMesosTestCase {
   @Before
@@ -53,6 +55,48 @@ class HttpServerTest extends KafkaMesosTestCase {
   @Test
   def broker_add {
     val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add", parseMap("broker=0,cpus=0.1,mem=128"))
+    assertEquals(1, brokers.brokers.size)
+
+    assertEquals(1, registry.cluster.getBrokers.size())
+    val broker = registry.cluster.getBrokers.get(0)
+    assertEquals(0, broker.id)
+    assertEquals(0.1, broker.cpus, 0.001)
+    assertEquals(128, broker.mem)
+
+    BrokerTest.assertBrokerEquals(broker, brokers.brokers.head)
+  }
+
+  def parseMapAny(s: String) = {
+
+    var m:Map[String, Any] = Map()
+    if(s!=null) {
+      s.split(',').foreach(k => {
+        val arr = k.split("=");
+        m+=(arr(0) -> arr(1))
+      })
+    }
+    m
+  }
+
+  def printMap(data:Option[Any]): Unit = {
+    data match {
+      case Some(p) => {
+        for {
+          (k, v) <- p.asInstanceOf[Map[String, String]]
+        } println(k, v)
+      }
+      case None => {
+        println("None recieved.. error while parsing json object")
+      }
+    }
+  }
+
+  @Test
+  def broker_add_json {
+    val json_data = JSON.parseFull(JSONObject(parseMapAny("broker=0,cpus=0.1,mem=128")).toString())
+    println(json_data)
+    printMap(json_data)
+    val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add", json_data)
     assertEquals(1, brokers.brokers.size)
 
     assertEquals(1, registry.cluster.getBrokers.size())
@@ -150,8 +194,76 @@ class HttpServerTest extends KafkaMesosTestCase {
   }
 
   @Test
+  def broker_update_image_json: Unit = {
+    var json_data = JSON.parseFull(JSONObject(parseMapAny("broker=0,cpus=1,mem=128,containerImage=test,javaCmd=/usr/bin/java")).toString())
+    printMap(json_data)
+    val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add",json_data)
+    assertEquals(1, brokers.brokers.size)
+    val broker = registry.cluster.getBroker(0)
+    assertEquals("test", broker.executionOptions.container.map(_.name).orNull)
+    assertEquals("/usr/bin/java", broker.executionOptions.javaCmd)
+    BrokerTest.assertBrokerEquals(broker, brokers.brokers.head)
+
+    // No key doesn't remove the image
+    sendRequestObj[BrokerStatusResponse]("/broker/update",
+      JSON.parseFull(JSONObject(parseMapAny("broker=0,cpus=1,mem=128,javaCmd=/usr/bin/java")).toString()))
+//      parseMap("broker=0,cpus=1,mem=128,javaCmd=/usr/bin/java"))
+    assertEquals("test", broker.executionOptions.container.map(_.name).orNull)
+
+    // Empty key does
+    sendRequestObj[BrokerStatusResponse]("/broker/update",
+      Map("broker" -> "0", "containerImage" -> ""))
+    assertEquals(None, broker.executionOptions.container)
+
+    sendRequestObj[BrokerStatusResponse]("/broker/update",
+      Map(
+        "broker" -> "0",
+        "containerImage" -> "test",
+        "containerMounts" -> "/a:/b,/c:/d:R"))
+
+    // Add mount points
+    assertEquals(Some(Container(
+      ctype = ContainerType.Docker,
+      name = "test",
+      mounts = Seq(
+        Mount("/a", "/b", MountMode.ReadWrite),
+        Mount("/c", "/d", MountMode.ReadOnly)
+      )
+    )), registry.cluster.getBroker(0).executionOptions.container)
+
+    // Remove them but keep the image
+    sendRequestObj[BrokerStatusResponse]("/broker/update",
+      Map(
+        "broker" -> "0",
+        "containerImage" -> "test",
+        "containerMounts" -> ""))
+    assertEquals(Some(Container(
+      ctype = ContainerType.Docker,
+      name = "test",
+      mounts = Seq()
+    )), registry.cluster.getBroker(0).executionOptions.container)
+
+    // Switch the image type
+    sendRequestObj[BrokerStatusResponse]("/broker/update", parseMap("broker=0,containerType=mesos"))
+    assertEquals(Some(Container(
+      ctype = ContainerType.Mesos,
+      name = "test",
+      mounts = Seq()
+    )), registry.cluster.getBroker(0).executionOptions.container)
+  }
+
+  @Test
   def broker_add_range {
     val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add", parseMap("broker=0..4"))
+    assertEquals(5, brokers.brokers.size)
+    assertEquals(5, registry.cluster.getBrokers.size)
+  }
+
+  @Test
+  def broker_add_range_json {
+    val json_data = JSON.parseFull(JSONObject(parseMapAny("broker=0..4")).toString())
+    printMap(json_data)
+    val brokers = sendRequestObj[BrokerStatusResponse]("/broker/add", json_data)
     assertEquals(5, brokers.brokers.size)
     assertEquals(5, registry.cluster.getBrokers.size)
   }
@@ -215,7 +327,14 @@ class HttpServerTest extends KafkaMesosTestCase {
     var brokers = json.brokers
     assertEquals(3, brokers.size)
 
-    val broker = brokers.head
+    var broker = brokers.head
+    assertEquals(0, broker.id)
+
+    json = sendRequestObj[BrokerStatusResponse]("/broker/list", JSON.parseFull(JSONObject(parseMapAny(null)).toString()))
+    brokers = json.brokers
+    assertEquals(3, brokers.size)
+
+    broker = brokers.head
     assertEquals(0, broker.id)
 
     // filtering
@@ -230,6 +349,20 @@ class HttpServerTest extends KafkaMesosTestCase {
     cluster.addBroker(new Broker(0))
 
     val json = sendRequestObj[BrokerStatusResponse]("/broker/clone", Map("broker" -> "1", "source" -> "0"))
+    val brokers = json.brokers
+    assertEquals(1, brokers.size)
+
+    val broker = brokers.head
+
+    assertEquals(1, broker.id)
+  }
+
+  @Test
+  def broker_clone_json {
+    val cluster = registry.cluster
+    cluster.addBroker(new Broker(0))
+
+    val json = sendRequestObj[BrokerStatusResponse]("/broker/clone", JSON.parseFull(JSONObject(parseMapAny("broker=1,source=0")).toString()))
     val brokers = json.brokers
     assertEquals(1, brokers.size)
 
@@ -256,6 +389,23 @@ class HttpServerTest extends KafkaMesosTestCase {
   }
 
   @Test
+  def broker_remove_json {
+    val cluster = registry.cluster
+    cluster.addBroker(new Broker(0))
+    cluster.addBroker(new Broker(1))
+    cluster.addBroker(new Broker(2))
+
+    var json = sendRequestObj[BrokerRemoveResponse]("/broker/remove", JSON.parseFull(JSONObject(parseMapAny("broker=1")).toString()))
+    assertEquals(Seq("1"), json.ids)
+    assertEquals(2, cluster.getBrokers.size)
+    assertNull(cluster.getBroker(1))
+
+    json = sendRequestObj[BrokerRemoveResponse]("/broker/remove", JSON.parseFull(JSONObject(parseMapAny(("broker=*"))).toString()))
+    assertEquals(Seq("0", "2"), json.ids)
+    assertTrue(cluster.getBrokers.isEmpty)
+  }
+
+  @Test
   def broker_start_stop {
     val cluster = registry.cluster
     val broker0 = cluster.addBroker(new Broker(0))
@@ -274,6 +424,31 @@ class HttpServerTest extends KafkaMesosTestCase {
     assertFalse(broker1.active)
 
     json = sendRequestObj[BrokerStartResponse]("/broker/stop", parseMap("broker=0,timeout=0s"))
+    assertEquals(1, json.brokers.size)
+    assertEquals("scheduled", json.status)
+    assertFalse(broker0.active)
+    assertFalse(broker1.active)
+  }
+
+  @Test
+  def broker_start_stop_json {
+    val cluster = registry.cluster
+    val broker0 = cluster.addBroker(new Broker(0))
+    val broker1 = cluster.addBroker(new Broker(1))
+
+    var json = sendRequestObj[BrokerStartResponse]("/broker/start", JSON.parseFull(JSONObject(parseMapAny("broker=*,timeout=0s")).toString()))
+    assertEquals(2, json.brokers.size)
+    assertEquals("scheduled", json.status)
+    assertTrue(broker0.active)
+    assertTrue(broker1.active)
+
+    json = sendRequestObj[BrokerStartResponse]("/broker/stop", JSON.parseFull(JSONObject(parseMapAny("broker=1,timeout=0s")).toString()))
+    assertEquals(1, json.brokers.size)
+    assertEquals("scheduled", json.status)
+    assertTrue(broker0.active)
+    assertFalse(broker1.active)
+
+    json = sendRequestObj[BrokerStartResponse]("/broker/stop", JSON.parseFull(JSONObject(parseMapAny("broker=0,timeout=0s")).toString()))
     assertEquals(1, json.brokers.size)
     assertEquals("scheduled", json.status)
     assertFalse(broker0.active)

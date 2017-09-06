@@ -75,6 +75,7 @@ dependencies {
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "com.fasterxml.jackson.module:jackson-module-scala_$kafkaScalaVersion:$jacksonVersion"
 
+
     testCompile 'junit:junit:4.12'
     testCompile 'com.101tec:zkclient:0.7'
 

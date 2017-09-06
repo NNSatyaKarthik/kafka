@@ -183,4 +183,16 @@ object Util {
       raf.close()
     }
   }
+
+  def getDataMap(data: Option[Any]): Map[String, Any] = {
+    data match {
+      case Some(d) =>
+        d.asInstanceOf[Map[String, Any]].foreach { case (k, v) => println(k, v) }
+        d.asInstanceOf[Map[String, Any]]
+      case None =>
+        println("Received None.. in teh post method request param")
+        Map[String, Any]()
+      case _ => Map[String, Any]()
+    }
+  }
 }
