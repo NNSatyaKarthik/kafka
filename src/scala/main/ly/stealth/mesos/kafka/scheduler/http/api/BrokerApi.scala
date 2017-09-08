@@ -76,6 +76,90 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
     @Path("{op: (add|update)}")
     @POST
     @Produces(Array(MediaType.APPLICATION_JSON))
+    @Consumes(Array(MediaType.APPLICATION_JSON))
+    def addBroker(@PathParam("op") operation: String, data: Option[Any]): Response = {
+      var dmap: Map[String, Any] = Util.getDataMap(data)
+      println("recieving data response from json argument..", data)
+      
+      var cpus = if (dmap.contains("cpus")) {
+        new JDouble(dmap("cpus").asInstanceOf[String])
+      } else {
+        null
+      }
+      var mem = if (dmap.contains("mem")) {
+        new JLong(dmap("mem").asInstanceOf[String])
+      } else {
+        null
+      }
+      var heap = if (dmap.contains("heap")) {
+        new JLong(dmap("heap").asInstanceOf[String])
+      } else {
+        null
+      }
+      var port = if (dmap.contains("port")) {
+        new Range(dmap("port").asInstanceOf[String])
+      } else {
+        null
+      }
+      var failoverDelay = if (dmap.contains("failoverDelay")) {
+        new Period(dmap("failoverDelay").asInstanceOf[String])
+      } else {
+        null
+      }
+      var stickinessPeriod = if (dmap.contains("stickinessPeriod")) {
+        new Period(dmap("stickinessPeriod").asInstanceOf[String])
+      } else {
+        null
+      }
+      var failoverMaxDelay = if (dmap.contains("failoverMaxDelay")) {
+        new Period(dmap("failoverMaxDelay").asInstanceOf[String])
+      } else {
+        null
+      }
+      var failoverMaxTries = if (dmap.contains("failoverMaxTries")) {
+        new Integer(dmap("failoverMaxTries").asInstanceOf[String])
+      } else {
+        null
+      }
+      var log4jOptions = if (dmap.contains("log4jOptions")) {
+        new StringMap(dmap("log4jOptions").asInstanceOf[String])
+      } else {
+        null
+      }
+      var bindAddress = if (dmap.contains("bindAddress")) {
+        new BindAddress(dmap("bindAddress").asInstanceOf[String])
+      } else {
+        null
+      }
+      var syslog = if (dmap.contains("syslog")) {
+        dmap("syslog").asInstanceOf[String] == "true"
+      } else {
+        false
+      }
+      var constraints = if (dmap.contains("constraints")) {
+        new ConstraintMap(dmap("constraints").asInstanceOf[String])
+      } else {
+        null
+      }
+      var options = if (dmap.contains("options")) {
+        new StringMap(dmap("options").asInstanceOf[String])
+      } else {
+        null
+      }
+
+      addBroker(operation, dmap.getOrElse("broker", null).asInstanceOf[String],
+        cpus, mem, heap, port, dmap.getOrElse("volume", null).asInstanceOf[String], bindAddress, syslog,
+        stickinessPeriod,
+        options, log4jOptions, dmap.getOrElse("jvmOptions", null).asInstanceOf[String], constraints,
+        failoverDelay, failoverMaxDelay, failoverMaxTries, dmap.getOrElse("javaCmd", null).asInstanceOf[String],
+        dmap.getOrElse("containerType", null).asInstanceOf[String], dmap.getOrElse("containerImage", null).asInstanceOf[String],
+        dmap.getOrElse("containerMounts", null).asInstanceOf[String])
+    }
+
+
+    @Path("{op: (add|update)}")
+    @POST
+    @Produces(Array(MediaType.APPLICATION_JSON))
     def addBroker(
       @PathParam("op") operation: String,
       @BothParam("broker") broker: String,
@@ -222,6 +306,15 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
     @Path("remove")
     @POST
     @Produces(Array(MediaType.APPLICATION_JSON))
+    @Consumes(Array(MediaType.APPLICATION_JSON))
+    def removeBroker(data: Option[Any]): Response = {
+      val dmap = Util.getDataMap(data)
+      removeBroker(dmap.getOrElse("broker", null).asInstanceOf[String])
+    }
+
+    @Path("remove")
+    @POST
+    @Produces(Array(MediaType.APPLICATION_JSON))
     def removeBroker(@BothParam("broker") expr: String): Response = {
       val brokers = expandBrokers(expr, {
         case b if b.active => throw new IllegalArgumentException(s"broker ${b.id} is active.")
@@ -235,6 +328,32 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
             .build()
         case Failure(e) => Status.BadRequest(e.getMessage)
       }
+    }
+
+    @Path("{op: (start|stop)}")
+    @POST
+    @Produces(Array(MediaType.APPLICATION_JSON))
+    @Consumes(Array(MediaType.APPLICATION_JSON))
+    def startStopBroker(@PathParam("op") operation: String,
+                        data: Option[Any]
+                       ): Response = {
+      val dmap = Util.getDataMap(data)
+      val timeout = new Period(if (dmap.contains("timeout")) {
+        dmap("timeout").asInstanceOf[String]
+      } else {
+        "60s"
+      })
+      val force = if (dmap.contains("force")) {
+        dmap("force").asInstanceOf[String] == "true"
+      } else {
+        false
+      }
+      val expr = if (dmap.contains("broker")) {
+        dmap("broker").asInstanceOf[String]
+      } else {
+        null
+      }
+      startStopBroker(operation, timeout, force, expr)
     }
 
     @Path("{op: (start|stop)}")
@@ -282,6 +401,21 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
       val status = waitForBrokers()
       val resp = BrokerStartResponse(brokers, status)
       Response.status(Response.Status.OK).entity(resp).build()
+    }
+
+    @Path("restart")
+    @POST
+    @Produces(Array(MediaType.APPLICATION_JSON))
+    @Consumes(Array(MediaType.APPLICATION_JSON))
+    def restartBroker(data:Option[Any],
+                       @BothParam("noWaitForReplication") noWaitForReplication: JBool,
+                       @BothParam("timeout") givenTimeout: Period,
+                       @BothParam("broker") expr: String
+                     ): Response = {
+      val dmap = Util.getDataMap(data)
+      val noWaitForReplication = new JBool(dmap.getOrElse("noWaitForReplication", "false").asInstanceOf[String])
+      val timeout:Period = if(dmap.contains("timeout")) { new Period(dmap("timeout").asInstanceOf[String])} else null
+      restartBroker(noWaitForReplication, timeout, dmap("broker").asInstanceOf[String])
     }
 
     @Path("restart")
@@ -374,6 +508,17 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
     @POST
     @Path("log")
     @Produces(Array(MediaType.APPLICATION_JSON))
+    @Consumes(Array(MediaType.APPLICATION_JSON))
+    def brokerLog(data:Option[Any]): Response = {
+      val dmap = Util.getDataMap(data)
+      val timeout = new Period(dmap.getOrElse("timeout", "30s").asInstanceOf[String])
+      val lines = Integer.parseInt(dmap.getOrElse("lines", "100").asInstanceOf[String])
+      brokerLog(timeout, dmap.getOrElse("broker", null).asInstanceOf[String], dmap.getOrElse("stdout", null).asInstanceOf[String], lines)
+    }
+
+    @POST
+    @Path("log")
+    @Produces(Array(MediaType.APPLICATION_JSON))
     def brokerLog(
       @DefaultValue("30s") @BothParam("timeout") timeout: Period,
       @BothParam("broker") expr: String,
@@ -414,6 +559,15 @@ trait BrokerApiComponentImpl extends BrokerApiComponent {
           case Failure(e: TimeoutException) => HttpLogResponse("timeout", "")
           case Failure(e) => HttpLogResponse("failure", e.getMessage)
         })
+    }
+
+    @POST
+    @Path("clone")
+    @Produces(Array(MediaType.APPLICATION_JSON))
+    @Consumes(Array(MediaType.APPLICATION_JSON))
+    def cloneBroker(data:Option[Any]): Response = {
+      val dmap = Util.getDataMap(data)
+      cloneBroker(dmap.getOrElse("broker", null).asInstanceOf[String], dmap.getOrElse("source", null).asInstanceOf[String])
     }
 
     @POST
