@@ -47,7 +47,7 @@ class BindAddressDeserializer extends StdDeserializer[BindAddress](classOf[BindA
 
 case class BrokerModel(
                         id: String, active: Boolean, cpus: Double, mem: Long, heap: Long,
-                        port: Range, volume: String, bindAddress: BindAddress, syslog: Boolean,
+                        port: Range, disk: Long, volume: String, bindAddress: BindAddress, syslog: Boolean,
                         constraints: String,
                         options: String, log4jOptions: String, jvmOptions: String,
                         stickiness: Stickiness, failover: Failover, task: Task,
@@ -64,7 +64,7 @@ class BrokerSerializer extends StdSerializer[Broker](classOf[Broker]) {
       }
 
     provider.defaultSerializeValue(BrokerModel(
-      b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.volume, b.bindAddress, b.syslog,
+      b.id.toString, b.active, b.cpus, b.mem, b.heap, b.port, b.disk, b.volume, b.bindAddress, b.syslog,
       Strings.formatMap(b.constraints), Strings.formatMap(b.options), Strings.formatMap(b.log4jOptions),
       b.executionOptions.jvmOptions, b.stickiness, b.failover, b.task, metrics, b.needsRestart,
       b.executionOptions
@@ -84,7 +84,7 @@ class BrokerDeserializer extends StdDeserializer[Broker](classOf[Broker]) {
     b.volume = model.volume
     b.bindAddress = model.bindAddress
     b.syslog = model.syslog
-
+    b.disk = model.disk
     b.constraints = Strings.parseMap(model.constraints).mapValues(new Constraint(_)).toMap
     b.options = Strings.parseMap(model.options).toMap
     b.log4jOptions = Strings.parseMap(model.log4jOptions).toMap

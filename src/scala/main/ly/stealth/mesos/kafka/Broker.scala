@@ -36,6 +36,7 @@ class Broker(val id: Int = 0) {
   var cpus: Double = 1
   var mem: Long = 2048
   var heap: Long = 1024
+  var disk: Long = 1024
   var port: Range = null
   var volume: String = null
   var bindAddress: BindAddress = null
@@ -64,7 +65,7 @@ class Broker(val id: Int = 0) {
     if (reservation.cpus < cpus) return OfferResult.neverMatch(offer, this, s"cpus < $cpus")
     if (reservation.mem < mem) return OfferResult.neverMatch(offer, this, s"mem < $mem")
     if (reservation.port == -1) return OfferResult.neverMatch(offer, this, "no suitable port")
-
+    if (reservation.disk < disk) return OfferResult.neverMatch(offer, this, s"not enough disk space..on the slave : $disk")
     // check volume
     if (volume != null && reservation.volume == null)
       return OfferResult.neverMatch(offer, this, s"offer missing volume: $volume")
@@ -105,6 +106,11 @@ class Broker(val id: Int = 0) {
     var reservedSharedCpus: Double = 0
     var reservedRoleCpus: Double = 0
 
+    var sharedDisk: Long = 0
+    var roleDisk: Long = 0
+    var reservedSharedDisk: Long = 0
+    var reservedRoleDisk: Long = 0
+
     var sharedMem: Long = 0
     var roleMem: Long = 0
     var reservedSharedMem: Long = 0
@@ -128,6 +134,7 @@ class Broker(val id: Int = 0) {
         if (resource.getName == "cpus") sharedCpus = resource.getScalar.getValue
         if (resource.getName == "mem") sharedMem = resource.getScalar.getValue.toLong
         if (resource.getName == "ports") sharedPorts.addAll(resource.getRanges.getRangeList.map(r => new Range(r.getBegin.toInt, r.getEnd.toInt)))
+        if (resource.getName == "disk") sharedDisk = resource.getScalar.getValue.toLong
       } else {
         if (role != null && role != resource.getRole)
           throw new IllegalArgumentException(s"Offer contains 2 non-default roles: $role, ${resource.getRole}")
@@ -138,6 +145,7 @@ class Broker(val id: Int = 0) {
           if (resource.getName == "cpus") roleCpus = resource.getScalar.getValue
           if (resource.getName == "mem") roleMem = resource.getScalar.getValue.toLong
           if (resource.getName == "ports") rolePorts.addAll(resource.getRanges.getRangeList.map(r => new Range(r.getBegin.toInt, r.getEnd.toInt)))
+          if (resource.getName == "disk") roleDisk = resource.getScalar.getValue.toLong
         }
 
         // dynamic role/principal-reserved volume
@@ -154,6 +162,9 @@ class Broker(val id: Int = 0) {
     reservedRoleCpus = Math.min(cpus, roleCpus)
     reservedSharedCpus = Math.min(cpus - reservedRoleCpus, sharedCpus)
 
+    reservedRoleDisk = Math.min(disk, roleDisk)
+    reservedSharedDisk = Math.min(disk - reservedRoleDisk, sharedDisk)
+
     reservedRoleMem = Math.min(mem, roleMem)
     reservedSharedMem = Math.min(mem - reservedRoleMem, sharedMem)
 
@@ -165,6 +176,7 @@ class Broker(val id: Int = 0) {
       reservedSharedCpus, reservedRoleCpus,
       reservedSharedMem, reservedRoleMem,
       reservedSharedPort, reservedRolePort,
+      reservedSharedDisk, reservedRoleDisk,
       reservedVolume, reservedVolumeSize,
       reservedVolumePrincipal, reservedVolumeSource
     )
@@ -266,7 +278,7 @@ class Broker(val id: Int = 0) {
     nb.failover.maxDelay = failover.maxDelay
     nb.failover.maxTries = failover.maxTries
     nb.executionOptions = executionOptions.copy()
-
+    nb.disk = disk
     nb
   }
 
@@ -488,6 +500,8 @@ object Broker {
                      val roleMem: Long = 0,
                      val sharedPort: Long = -1,
                      val rolePort: Long = -1,
+                     val sharedDisk: Long = 0,
+                     val roleDisk: Long = 0,
                      val volume: String = null,
                      val volumeSize: Double = 0.0,
                      val volumePrincipal: String = null,
@@ -497,6 +511,7 @@ object Broker {
     def cpus: Double = sharedCpus + roleCpus
     val mem: Long = sharedMem + roleMem
     val port: Long = if (rolePort != -1) rolePort else sharedPort
+    val disk: Long = sharedDisk + roleDisk
 
     def toResources: util.List[Resource] = {
       def cpus(value: Double, role: String): Resource = {
@@ -522,6 +537,15 @@ object Broker {
           .setName("ports")
           .setType(Value.Type.RANGES)
           .setRanges(Value.Ranges.newBuilder.addRange(Value.Range.newBuilder().setBegin(value).setEnd(value)))
+          .setRole(role)
+          .build()
+      }
+
+      def disk(value: Long, role: String): Resource = {
+        Resource.newBuilder
+          .setName("disk")
+          .setType(Value.Type.SCALAR)
+          .setScalar(Value.Scalar.newBuilder.setValue(value))
           .setRole(role)
           .build()
       }
@@ -560,6 +584,9 @@ object Broker {
 
       if (sharedPort != -1) resources.add(port(sharedPort, "*"))
       if (rolePort != -1) resources.add(port(rolePort, role))
+
+      if (sharedDisk > 0) resources.add(disk(sharedDisk, "*"))
+      if (roleDisk > 0) resources.add(disk(roleDisk, role))
 
       if (volume != null) resources.add(volumeDisk(volume, volumeSize, role, volumePrincipal, diskSource))
       resources

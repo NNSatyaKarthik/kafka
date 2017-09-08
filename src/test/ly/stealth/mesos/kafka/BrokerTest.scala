@@ -42,6 +42,7 @@ class BrokerTest extends KafkaMesosTestCase {
     broker = new Broker(0)
     broker.cpus = 0
     broker.mem = 0
+    broker.disk = 0
   }
 
   @Test
@@ -105,6 +106,16 @@ class BrokerTest extends KafkaMesosTestCase {
     assertEquals(
       OfferResult.neverMatch(theOffer, broker, "no suitable port"),
       broker.matches(theOffer))
+    
+    //disk
+    broker.disk = 1024
+    theOffer = offer("disk:512; disk(role):512; ports:1000")
+    BrokerTest.assertAccept(broker.matches(theOffer))
+    theOffer = offer("disk:512; disk(role):511; ports:1000")
+    assertEquals(
+      OfferResult.neverMatch(theOffer, broker, s"not enough disk space..on the slave : ${broker.disk}"),
+      broker.matches(theOffer))
+    broker.disk=0 
   }
 
   @Test
